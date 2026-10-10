@@ -25,9 +25,44 @@ namespace SudokuVR.Editor
             Material matTile = GetOrCreateMaterial("Assets/_Project/Art/Materials/M_Acrylic_Tile.mat", new Color(0.12f, 0.15f, 0.21f, 1f), 0.05f, 0.7f);
             Material matButton = GetOrCreateMaterial("Assets/_Project/Art/Materials/M_Keypad_Button.mat", new Color(0.16f, 0.20f, 0.28f, 1f), 0.1f, 0.65f);
 
-            // 2. Locate or configure Camera & Passthrough
+            // 2. Locate or configure Camera Rig, Controllers, and Hand Tracking
             Camera mainCam = Camera.main ?? UnityEngine.Object.FindAnyObjectByType<Camera>();
             OVRPassthroughLayer passthrough = UnityEngine.Object.FindAnyObjectByType<OVRPassthroughLayer>();
+            OVRCameraRig cameraRig = UnityEngine.Object.FindAnyObjectByType<OVRCameraRig>();
+
+            if (cameraRig != null)
+            {
+                // Attach controller visual models & poke tips
+                if (cameraRig.leftControllerAnchor != null)
+                {
+                    var leftHelper = GetOrAddComponent<OVRControllerHelper>(cameraRig.leftControllerAnchor.gameObject);
+                    SerializedObject soLeft = new SerializedObject(leftHelper);
+                    soLeft.FindProperty("m_controller").enumValueIndex = (int)OVRInput.Controller.LTouch;
+                    soLeft.ApplyModifiedPropertiesWithoutUndo();
+
+                    GetOrAddComponent<XRHandPokeFinger>(cameraRig.leftControllerAnchor.gameObject);
+                }
+
+                if (cameraRig.rightControllerAnchor != null)
+                {
+                    var rightHelper = GetOrAddComponent<OVRControllerHelper>(cameraRig.rightControllerAnchor.gameObject);
+                    SerializedObject soRight = new SerializedObject(rightHelper);
+                    soRight.FindProperty("m_controller").enumValueIndex = (int)OVRInput.Controller.RTouch;
+                    soRight.ApplyModifiedPropertiesWithoutUndo();
+
+                    GetOrAddComponent<XRHandPokeFinger>(cameraRig.rightControllerAnchor.gameObject);
+                }
+
+                // Attach Hand Poke triggers
+                if (cameraRig.leftHandAnchor != null)
+                {
+                    GetOrAddComponent<XRHandPokeFinger>(cameraRig.leftHandAnchor.gameObject);
+                }
+                if (cameraRig.rightHandAnchor != null)
+                {
+                    GetOrAddComponent<XRHandPokeFinger>(cameraRig.rightHandAnchor.gameObject);
+                }
+            }
 
             // 3. Assemble Core Systems Root
             GameObject systemsRoot = GameObject.Find("[Zenith_Systems]");
@@ -46,6 +81,16 @@ namespace SudokuVR.Editor
             HintService hints = GetOrAddComponent<HintService>(systemsRoot);
             SudokuGameManager gameManager = GetOrAddComponent<SudokuGameManager>(systemsRoot);
             CellInteractor interactor = GetOrAddComponent<CellInteractor>(systemsRoot);
+
+            if (cameraRig != null)
+            {
+                SerializedObject soInteractor = new SerializedObject(interactor);
+                soInteractor.FindProperty("rightControllerRayOrigin").objectReferenceValue = cameraRig.rightControllerAnchor;
+                soInteractor.FindProperty("leftControllerRayOrigin").objectReferenceValue = cameraRig.leftControllerAnchor;
+                soInteractor.FindProperty("rightHandRayOrigin").objectReferenceValue = cameraRig.rightHandAnchor;
+                soInteractor.FindProperty("leftHandRayOrigin").objectReferenceValue = cameraRig.leftHandAnchor;
+                soInteractor.ApplyModifiedPropertiesWithoutUndo();
+            }
 
             // 4. Assemble Spatial Board Monolith
             GameObject monolithRoot = GameObject.Find("SpatialBoard_Monolith");
@@ -426,6 +471,9 @@ namespace SudokuVR.Editor
             tmp.fontStyle = FontStyles.Bold;
             tmp.color = Color.white;
             tmp.text = label;
+
+            BoxCollider box = btnObj.AddComponent<BoxCollider>();
+            box.size = new Vector3(size.x, size.y, 4f);
 
             return btn;
         }
