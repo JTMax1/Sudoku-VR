@@ -5,16 +5,17 @@ using SudokuVR.Networking;
 namespace SudokuVR.Core
 {
     /// <summary>
-    /// Encapsulates the 9x9 Sudoku board state using flat 81-byte arrays.
-    /// Manages cell mutations, conflict tracking, prefilled immutability,
+    /// Encapsulates the 9x9 Sudoku board state using flat 81-byte arrays and 81-ushort note masks.
+    /// Manages cell mutations, pencil notes, conflict tracking, prefilled immutability,
     /// and event-driven notifications for local and networked gameplay.
     /// </summary>
     public class SudokuBoardState
     {
-        // Flat state arrays (81 bytes each)
+        // Flat state arrays (81 items each)
         private readonly byte[] _initialPuzzle = new byte[SudokuData.CellCount];
         private readonly byte[] _currentValues = new byte[SudokuData.CellCount];
         private readonly byte[] _solution = new byte[SudokuData.CellCount];
+        private readonly ushort[] _pencilNotes = new ushort[SudokuData.CellCount];
         private readonly bool[] _isPrefilled = new bool[SudokuData.CellCount];
         private readonly bool[] _isConflict = new bool[SudokuData.CellCount];
         private readonly PlayerId[] _cellOwners = new PlayerId[SudokuData.CellCount];
@@ -24,6 +25,7 @@ namespace SudokuVR.Core
 
         // Events
         public event Action<int, int, int, PlayerId> OnCellModified;
+        public event Action<int, int, ushort> OnCellNotesModified;
         public event Action<int, int, PlayerId> OnCellSelected;
         public event Action<int, int, PlayerId> OnCellDeselected;
         public event Action<bool> OnBoardCompleted;
@@ -49,6 +51,7 @@ namespace SudokuVR.Core
             Array.Copy(puzzle, _initialPuzzle, SudokuData.CellCount);
             Array.Copy(puzzle, _currentValues, SudokuData.CellCount);
             Array.Copy(solution, _solution, SudokuData.CellCount);
+            Array.Clear(_pencilNotes, 0, SudokuData.CellCount);
 
             for (int i = 0; i < SudokuData.CellCount; i++)
             {
@@ -75,8 +78,7 @@ namespace SudokuVR.Core
 
             if (_isPrefilled[index])
             {
-                // Cannot overwrite immutable prefilled clues
-                return false;
+                return false; // Cannot overwrite immutable clues
             }
 
             byte valByte = (byte)Mathf.Clamp(value, 0, 9);
@@ -88,8 +90,14 @@ namespace SudokuVR.Core
             _currentValues[index] = valByte;
             _cellOwners[index] = valByte > 0 ? player : PlayerId.InvalidPlayer;
 
-            RecalculateConflicts();
+            // Clear notes for this cell when a number is placed
+            if (valByte > 0 && _pencilNotes[index] != 0)
+            {
+                _pencilNotes[index] = 0;
+                OnCellNotesModified?.Invoke(row, col, 0);
+            }
 
+            RecalculateConflicts();
             OnCellModified?.Invoke(row, col, valByte, player);
 
             bool completed = CheckBoardCompletion();
@@ -105,6 +113,48 @@ namespace SudokuVR.Core
             }
 
             return true;
+        }
+
+        /// <summary>
+        /// Toggles a pencil candidate note (1-9) inside an empty cell.
+        /// </summary>
+        public bool ToggleNote(int row, int col, int digit)
+        {
+            int index = SudokuData.GetIndex(row, col);
+            if (index < 0 || index >= SudokuData.CellCount) return false;
+            if (_isPrefilled[index] || _currentValues[index] != 0) return false;
+            if (digit < 1 || digit > 9) return false;
+
+            ushort bit = SudokuData.DigitToMask(digit);
+            _pencilNotes[index] ^= bit;
+            OnCellNotesModified?.Invoke(row, col, _pencilNotes[index]);
+            return true;
+        }
+
+        public void SetNotes(int row, int col, ushort mask)
+        {
+            int index = SudokuData.GetIndex(row, col);
+            if (index < 0 || index >= SudokuData.CellCount) return;
+            if (_isPrefilled[index] || _currentValues[index] != 0) return;
+
+            _pencilNotes[index] = mask;
+            OnCellNotesModified?.Invoke(row, col, mask);
+        }
+
+        public ushort GetNotes(int row, int col)
+        {
+            int index = SudokuData.GetIndex(row, col);
+            return (index >= 0 && index < SudokuData.CellCount) ? _pencilNotes[index] : (ushort)0;
+        }
+
+        public void ClearNotes(int row, int col)
+        {
+            int index = SudokuData.GetIndex(row, col);
+            if (index >= 0 && index < SudokuData.CellCount && _pencilNotes[index] != 0)
+            {
+                _pencilNotes[index] = 0;
+                OnCellNotesModified?.Invoke(row, col, 0);
+            }
         }
 
         public void SetSelection(int row, int col, PlayerId player)
@@ -146,6 +196,12 @@ namespace SudokuVR.Core
             return (index >= 0 && index < SudokuData.CellCount) ? _currentValues[index] : (byte)0;
         }
 
+        public byte GetSolutionValue(int row, int col)
+        {
+            int index = SudokuData.GetIndex(row, col);
+            return (index >= 0 && index < SudokuData.CellCount) ? _solution[index] : (byte)0;
+        }
+
         public bool IsCellPrefilled(int row, int col)
         {
             int index = SudokuData.GetIndex(row, col);
@@ -168,6 +224,20 @@ namespace SudokuVR.Core
         {
             int index = SudokuData.GetIndex(row, col);
             return (index >= 0 && index < SudokuData.CellCount) ? _selectedBy[index] : PlayerId.InvalidPlayer;
+        }
+
+        public int CountDigitPlaced(int digit)
+        {
+            if (digit < 1 || digit > 9) return 0;
+            int count = 0;
+            for (int i = 0; i < SudokuData.CellCount; i++)
+            {
+                if (_currentValues[i] == digit && !_isConflict[i])
+                {
+                    count++;
+                }
+            }
+            return count;
         }
 
         /// <summary>
@@ -197,13 +267,13 @@ namespace SudokuVR.Core
         }
 
         /// <summary>
-        /// Checks if the board is completely and correctly solved.
+        /// Checks if the board is completely and correctly solved without conflicts.
         /// </summary>
         public bool CheckBoardCompletion()
         {
             for (int i = 0; i < SudokuData.CellCount; i++)
             {
-                if (_currentValues[i] == 0 || _isConflict[i])
+                if (_currentValues[i] == 0 || _isConflict[i] || _currentValues[i] != _solution[i])
                 {
                     return false;
                 }
@@ -212,10 +282,6 @@ namespace SudokuVR.Core
         }
 
         #region Network Serialization Helpers
-        /// <summary>
-        /// Exports board state into a contiguous byte buffer for network replication.
-        /// Payload: 81 bytes current values + 81 bytes initial puzzle. Total = 162 bytes.
-        /// </summary>
         public byte[] ExportStatePayload()
         {
             byte[] payload = new byte[SudokuData.CellCount * 2];

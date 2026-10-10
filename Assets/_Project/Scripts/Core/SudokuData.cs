@@ -5,9 +5,12 @@ namespace SudokuVR.Core
 {
     public enum Difficulty
     {
-        Easy = 0,
-        Medium = 1,
-        Hard = 2
+        Beginner = 0,
+        Easy = 1,
+        Medium = 2,
+        Hard = 3,
+        Expert = 4,
+        Extreme = 5
     }
 
     public enum CellVisualState
@@ -15,9 +18,12 @@ namespace SudokuVR.Core
         Default = 0,
         Prefilled = 1,
         Selected = 2,
-        Conflict = 3,
-        Correct = 4,
-        PeerSelected = 5
+        Related = 3,
+        IdenticalNumber = 4,
+        Conflict = 5,
+        Correct = 6,
+        PeerSelected = 7,
+        PencilNotes = 8
     }
 
     /// <summary>

@@ -2,54 +2,55 @@ using System;
 using TMPro;
 using UnityEngine;
 using SudokuVR.Core;
+using SudokuVR.Interaction;
 using SudokuVR.Networking;
 
 namespace SudokuVR.Gameplay
 {
     /// <summary>
-    /// Manages the visual layout, cell view hierarchy, and responsive states of the 9x9 Sudoku grid.
-    /// Sized for ergonomic VR tabletop interaction (approx 0.6m x 0.6m).
+    /// Manages the 3D spatial monolith grid, Tile3DView hierarchy, and dynamic lighting highlights.
+    /// Ergonomically sized for floating VR interaction (approx 0.55m x 0.55m).
     /// </summary>
     public class SudokuBoardView : MonoBehaviour
     {
-        [Header("Prefab Reference")]
-        [SerializeField] private SudokuCellView cellPrefab;
+        [Header("Prefab Reference (Optional)")]
+        [SerializeField] private Tile3DView tilePrefab;
 
-        [Header("Board VR Metric Dimensions")]
-        [Tooltip("Size of each individual cell in meters")]
-        [SerializeField] private float cellSize = 0.056f;
-        [Tooltip("Spacing between adjacent cells within a 3x3 block in meters")]
+        [Header("Metric Board Dimensions (Meters)")]
+        [SerializeField] private float cellSize = 0.052f;
         [SerializeField] private float cellSpacing = 0.005f;
-        [Tooltip("Additional spacing between 3x3 blocks in meters")]
-        [SerializeField] private float blockSpacing = 0.015f;
+        [SerializeField] private float blockSpacing = 0.016f;
 
-        [Header("Board Backing Mesh")]
+        [Header("Monolith Backing Mesh")]
         [SerializeField] private Transform boardBackplate;
 
-        private readonly SudokuCellView[,] _cells = new SudokuCellView[SudokuData.BoardSize, SudokuData.BoardSize];
+        private readonly Tile3DView[,] _tiles = new Tile3DView[SudokuData.BoardSize, SudokuData.BoardSize];
         private int _selectedRow = -1;
         private int _selectedCol = -1;
+        private byte _selectedDigit = 0;
 
         public event Action<int, int> OnCellSelectedByUser;
 
         public int SelectedRow => _selectedRow;
         public int SelectedCol => _selectedCol;
+        public byte SelectedDigit => _selectedDigit;
         public bool HasSelection => _selectedRow >= 0 && _selectedCol >= 0;
 
-        public SudokuCellView GetCellView(int row, int col)
+        public float TotalBoardSpan => 8 * (cellSize + cellSpacing) + 2 * blockSpacing + cellSize;
+
+        public Tile3DView GetTileView(int row, int col)
         {
             if (row < 0 || row >= SudokuData.BoardSize || col < 0 || col >= SudokuData.BoardSize)
                 return null;
-            return _cells[row, col];
+            return _tiles[row, col];
         }
 
         /// <summary>
-        /// Generates the 81 cell GameObjects and positions them in metric 3D space if not already created.
+        /// Generates the 81 tactile 3D tile monoliths in metric space centered around (0, 0, 0).
         /// </summary>
         public void BuildGridHierarchy()
         {
             float pitch = cellSize + cellSpacing;
-            // Total board span calculation to center grid around local origin (0, 0, 0)
             float totalSpan = 8 * pitch + 2 * blockSpacing;
             float halfSpan = totalSpan * 0.5f;
 
@@ -63,47 +64,47 @@ namespace SudokuVR.Gameplay
                     int blockC = c / SudokuData.BlockSize;
                     float xPos = -halfSpan + (c * pitch + blockC * blockSpacing);
 
-                    SudokuCellView cell = _cells[r, c];
-                    if (cell == null)
+                    Tile3DView tile = _tiles[r, c];
+                    if (tile == null)
                     {
-                        Transform existingChild = transform.Find($"Cell_{r}_{c}");
+                        Transform existingChild = transform.Find($"Tile_{r}_{c}");
                         if (existingChild != null)
                         {
-                            cell = existingChild.GetComponent<SudokuCellView>();
+                            tile = existingChild.GetComponent<Tile3DView>();
                         }
 
-                        if (cell == null)
+                        if (tile == null)
                         {
-                            if (cellPrefab != null)
+                            if (tilePrefab != null)
                             {
-                                cell = Instantiate(cellPrefab, transform);
+                                tile = Instantiate(tilePrefab, transform);
                             }
                             else
                             {
-                                cell = CreateProceduralCell(r, c);
+                                tile = CreateProceduralTile(r, c);
                             }
                         }
 
-                        _cells[r, c] = cell;
+                        _tiles[r, c] = tile;
                     }
 
-                    cell.transform.localPosition = new Vector3(xPos, 0.005f, zPos);
-                    cell.transform.localRotation = Quaternion.identity;
-                    cell.transform.localScale = new Vector3(cellSize, 0.01f, cellSize);
-                    cell.Setup(r, c);
+                    tile.transform.localPosition = new Vector3(xPos, 0.006f, zPos);
+                    tile.transform.localRotation = Quaternion.identity;
+                    tile.transform.localScale = new Vector3(cellSize, 0.014f, cellSize);
+                    tile.Setup(r, c);
 
-                    cell.OnCellClicked -= HandleCellClicked;
-                    cell.OnCellClicked += HandleCellClicked;
+                    tile.OnTileClicked -= HandleTileClicked;
+                    tile.OnTileClicked += HandleTileClicked;
                 }
             }
 
-            // Size backplate if present
+            // Monolith backplate
             if (boardBackplate != null)
             {
-                float plateMargin = 0.04f;
+                float plateMargin = 0.035f;
                 float plateWidth = totalSpan + cellSize + plateMargin;
-                boardBackplate.localScale = new Vector3(plateWidth, 0.02f, plateWidth);
-                boardBackplate.localPosition = new Vector3(0f, -0.01f, 0f);
+                boardBackplate.localScale = new Vector3(plateWidth, 0.015f, plateWidth);
+                boardBackplate.localPosition = new Vector3(0f, -0.008f, 0f);
             }
         }
 
@@ -111,15 +112,15 @@ namespace SudokuVR.Gameplay
         {
             if (state == null) return;
 
-            // Unsubscribe existing
             state.OnCellModified -= HandleStateCellModified;
+            state.OnCellNotesModified -= HandleStateCellNotesModified;
             state.OnCellSelected -= HandleStateCellSelected;
             state.OnCellDeselected -= HandleStateCellDeselected;
             state.OnBoardCompleted -= HandleStateBoardCompleted;
             state.OnBoardReset -= HandleStateBoardReset;
 
-            // Subscribe
             state.OnCellModified += HandleStateCellModified;
+            state.OnCellNotesModified += HandleStateCellNotesModified;
             state.OnCellSelected += HandleStateCellSelected;
             state.OnCellDeselected += HandleStateCellDeselected;
             state.OnBoardCompleted += HandleStateBoardCompleted;
@@ -136,26 +137,28 @@ namespace SudokuVR.Gameplay
             {
                 for (int c = 0; c < SudokuData.BoardSize; c++)
                 {
-                    SudokuCellView view = _cells[r, c];
-                    if (view == null) continue;
+                    Tile3DView tile = _tiles[r, c];
+                    if (tile == null) continue;
 
                     bool prefilled = state.IsCellPrefilled(r, c);
                     byte val = state.GetCellValue(r, c);
+                    ushort notes = state.GetNotes(r, c);
 
-                    view.SetPrefilled(prefilled);
-                    view.SetValue(val);
+                    tile.SetPrefilled(prefilled);
+                    tile.SetValue(val);
+                    tile.SetNotes(notes);
 
-                    UpdateCellVisual(state, r, c);
+                    UpdateTileVisual(state, r, c);
                 }
             }
 
-            UpdateRelatedHighlights();
+            UpdateHighlights(state);
         }
 
-        private void UpdateCellVisual(SudokuBoardState state, int r, int c)
+        private void UpdateTileVisual(SudokuBoardState state, int r, int c)
         {
-            SudokuCellView view = _cells[r, c];
-            if (view == null) return;
+            Tile3DView tile = _tiles[r, c];
+            if (tile == null) return;
 
             PlayerId peer = state.GetSelectedBy(r, c);
             bool isSelected = (_selectedRow == r && _selectedCol == c);
@@ -164,49 +167,58 @@ namespace SudokuVR.Gameplay
 
             if (isSelected)
             {
-                view.SetVisualState(CellVisualState.Selected);
+                tile.SetVisualState(CellVisualState.Selected);
             }
             else if (peer.IsValid && !peer.IsLocal)
             {
-                view.SetVisualState(CellVisualState.PeerSelected, peer);
+                tile.SetVisualState(CellVisualState.PeerSelected, peer);
             }
             else if (isConflict)
             {
-                view.SetVisualState(CellVisualState.Conflict);
+                tile.SetVisualState(CellVisualState.Conflict);
             }
             else if (isPrefilled)
             {
-                view.SetVisualState(CellVisualState.Prefilled);
+                tile.SetVisualState(CellVisualState.Prefilled);
             }
             else
             {
-                view.SetVisualState(CellVisualState.Default);
+                tile.SetVisualState(CellVisualState.Default);
             }
         }
 
-        private void UpdateRelatedHighlights()
+        private void UpdateHighlights(SudokuBoardState state)
         {
             int selectedBlock = (_selectedRow >= 0 && _selectedCol >= 0)
                 ? SudokuData.GetBlock(_selectedRow, _selectedCol)
                 : -1;
 
+            _selectedDigit = (_selectedRow >= 0 && _selectedCol >= 0 && state != null)
+                ? state.GetCellValue(_selectedRow, _selectedCol)
+                : (byte)0;
+
             for (int r = 0; r < SudokuData.BoardSize; r++)
             {
                 for (int c = 0; c < SudokuData.BoardSize; c++)
                 {
-                    SudokuCellView view = _cells[r, c];
-                    if (view == null) continue;
+                    Tile3DView tile = _tiles[r, c];
+                    if (tile == null) continue;
 
                     if (_selectedRow < 0 || _selectedCol < 0)
                     {
-                        view.SetRelatedHighlight(false);
+                        tile.SetRelatedHighlight(false);
+                        tile.SetIdenticalNumberHighlight(false);
                     }
                     else
                     {
                         bool isSameRow = (r == _selectedRow);
                         bool isSameCol = (c == _selectedCol);
                         bool isSameBlock = (SudokuData.GetBlock(r, c) == selectedBlock);
-                        view.SetRelatedHighlight(isSameRow || isSameCol || isSameBlock);
+                        tile.SetRelatedHighlight(isSameRow || isSameCol || isSameBlock);
+
+                        // Highlight cells sharing the same non-zero digit
+                        bool isIdentical = (_selectedDigit > 0 && tile.Value == _selectedDigit && !(r == _selectedRow && c == _selectedCol));
+                        tile.SetIdenticalNumberHighlight(isIdentical);
                     }
                 }
             }
@@ -223,54 +235,62 @@ namespace SudokuVR.Gameplay
         {
             _selectedRow = -1;
             _selectedCol = -1;
-            UpdateRelatedHighlights();
+            _selectedDigit = 0;
+            UpdateHighlights(null);
         }
 
-        private void HandleCellClicked(int row, int col)
+        private void HandleTileClicked(int row, int col)
         {
             SelectCell(row, col);
         }
 
         private void HandleStateCellModified(int row, int col, int value, PlayerId player)
         {
-            SudokuCellView view = _cells[row, col];
-            if (view != null)
+            Tile3DView tile = _tiles[row, col];
+            if (tile != null)
             {
-                view.SetValue(value);
+                tile.SetValue(value);
+            }
+        }
+
+        private void HandleStateCellNotesModified(int row, int col, ushort notesMask)
+        {
+            Tile3DView tile = _tiles[row, col];
+            if (tile != null)
+            {
+                tile.SetNotes(notesMask);
             }
         }
 
         private void HandleStateCellSelected(int row, int col, PlayerId player)
         {
-            SudokuCellView view = _cells[row, col];
-            if (view == null) return;
+            Tile3DView tile = _tiles[row, col];
+            if (tile == null) return;
 
             if (player.IsLocal)
             {
                 _selectedRow = row;
                 _selectedCol = col;
-                view.SetVisualState(CellVisualState.Selected);
-                UpdateRelatedHighlights();
+                tile.SetVisualState(CellVisualState.Selected);
             }
             else
             {
-                view.SetVisualState(CellVisualState.PeerSelected, player);
+                tile.SetVisualState(CellVisualState.PeerSelected, player);
             }
         }
 
         private void HandleStateCellDeselected(int row, int col, PlayerId player)
         {
-            SudokuCellView view = _cells[row, col];
-            if (view == null) return;
+            Tile3DView tile = _tiles[row, col];
+            if (tile == null) return;
 
             if (player.IsLocal && _selectedRow == row && _selectedCol == col)
             {
                 _selectedRow = -1;
                 _selectedCol = -1;
-                UpdateRelatedHighlights();
             }
 
-            view.SetVisualState(view.IsPrefilled ? CellVisualState.Prefilled : CellVisualState.Default);
+            tile.SetVisualState(tile.IsPrefilled ? CellVisualState.Prefilled : CellVisualState.Default);
         }
 
         private void HandleStateBoardCompleted(bool isCompleted)
@@ -281,7 +301,7 @@ namespace SudokuVR.Gameplay
                 {
                     for (int c = 0; c < SudokuData.BoardSize; c++)
                     {
-                        _cells[r, c]?.SetVisualState(CellVisualState.Correct);
+                        _tiles[r, c]?.SetVisualState(CellVisualState.Correct);
                     }
                 }
             }
@@ -292,24 +312,24 @@ namespace SudokuVR.Gameplay
             ClearSelection();
         }
 
-        private SudokuCellView CreateProceduralCell(int row, int col)
+        private Tile3DView CreateProceduralTile(int row, int col)
         {
             GameObject cellObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            cellObj.name = $"Cell_{row}_{col}";
+            cellObj.name = $"Tile_{row}_{col}";
             cellObj.transform.SetParent(transform, false);
 
-            SudokuCellView view = cellObj.AddComponent<SudokuCellView>();
+            Tile3DView view = cellObj.AddComponent<Tile3DView>();
 
-            // Add TextMeshPro 3D text child
+            // Main 3D Text
             GameObject textObj = new GameObject("Text");
             textObj.transform.SetParent(cellObj.transform, false);
             textObj.transform.localPosition = new Vector3(0f, 0.51f, 0f);
             textObj.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
-            textObj.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
+            textObj.transform.localScale = new Vector3(0.09f, 0.09f, 0.09f);
 
             TextMeshPro tmp = textObj.AddComponent<TextMeshPro>();
             tmp.alignment = TextAlignmentOptions.Center;
-            tmp.fontSize = 40f;
+            tmp.fontSize = 38f;
             tmp.text = "";
             tmp.color = Color.white;
 

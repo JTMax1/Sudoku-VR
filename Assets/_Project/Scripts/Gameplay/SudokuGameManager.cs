@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -9,53 +10,81 @@ using Debug = UnityEngine.Debug;
 namespace SudokuVR.Gameplay
 {
     /// <summary>
-    /// Master coordinator for Sudoku VR.
-    /// Orchestrates puzzle generation, board state, view updates, and VR input routing.
-    /// Emits initialization and performance telemetry.
+    /// Master coordinator for "Zenith Sudoku XR".
+    /// Orchestrates 6-tier puzzle generation, board state, tactile view updates,
+    /// 3-strikes rule, scoring engine, active timer, pencil notes, move history, and smart hints.
     /// </summary>
     public class SudokuGameManager : MonoBehaviour
     {
+        public static SudokuGameManager Instance { get; private set; }
+
         [Header("Scene References")]
         [SerializeField] private SudokuBoardView boardView;
-        [SerializeField] private SpatialNumpad spatialNumpad;
+        [SerializeField] private FloatingKeypadView floatingKeypad;
+        [SerializeField] private SpatialBoardAnchor boardAnchor;
+        [SerializeField] private TimerSystem timerSystem;
+        [SerializeField] private ScoringEngine scoringEngine;
+        [SerializeField] private HintService hintService;
         [SerializeField] private LocalSudokuNetworkSync networkSync;
 
         [Header("Game Configuration")]
-        [SerializeField] private Difficulty defaultDifficulty = Difficulty.Medium;
+        [SerializeField] private Difficulty defaultDifficulty = Difficulty.Beginner;
         [SerializeField] private bool autoGenerateOnStart = true;
+        [SerializeField] private int maxMistakesAllowed = 3;
 
         private SudokuGenerator _generator;
         private SudokuBoardState _boardState;
+        private MoveHistory _moveHistory;
 
         private readonly byte[] _puzzleBuffer = new byte[SudokuData.CellCount];
         private readonly byte[] _solutionBuffer = new byte[SudokuData.CellCount];
 
+        private int _mistakeCount = 0;
+        private bool _isGameOver = false;
+
         public SudokuBoardState BoardState => _boardState;
         public SudokuBoardView BoardView => boardView;
+        public FloatingKeypadView FloatingKeypad => floatingKeypad;
+        public SpatialBoardAnchor BoardAnchor => boardAnchor;
+        public TimerSystem Timer => timerSystem;
+        public ScoringEngine ScoreEngine => scoringEngine;
+        public MoveHistory History => _moveHistory;
         public Difficulty CurrentDifficulty { get; private set; }
+
+        public int MistakeCount => _mistakeCount;
+        public int MaxMistakes => maxMistakesAllowed;
+        public bool IsGameOver => _isGameOver;
+
+        public event Action<int, int> OnMistakesUpdated; // (current, max)
+        public event Action<bool> OnGameFinished; // true for victory, false for defeat
+        public event Action<HintResult> OnHintReceived;
 
         private void Awake()
         {
+            if (Instance == null) Instance = this;
+
             _generator = new SudokuGenerator();
             _boardState = new SudokuBoardState();
+            _moveHistory = new MoveHistory();
 
-            if (boardView == null)
+            if (boardView == null) boardView = FindAnyObjectByType<SudokuBoardView>();
+            if (floatingKeypad == null) floatingKeypad = FindAnyObjectByType<FloatingKeypadView>();
+            if (boardAnchor == null) boardAnchor = FindAnyObjectByType<SpatialBoardAnchor>();
+            if (timerSystem == null)
             {
-                boardView = FindAnyObjectByType<SudokuBoardView>();
+                timerSystem = GetComponent<TimerSystem>() ?? gameObject.AddComponent<TimerSystem>();
             }
-
-            if (spatialNumpad == null)
+            if (scoringEngine == null)
             {
-                spatialNumpad = FindAnyObjectByType<SpatialNumpad>();
+                scoringEngine = GetComponent<ScoringEngine>() ?? gameObject.AddComponent<ScoringEngine>();
             }
-
+            if (hintService == null)
+            {
+                hintService = GetComponent<HintService>() ?? gameObject.AddComponent<HintService>();
+            }
             if (networkSync == null)
             {
-                networkSync = FindAnyObjectByType<LocalSudokuNetworkSync>();
-                if (networkSync == null)
-                {
-                    networkSync = gameObject.AddComponent<LocalSudokuNetworkSync>();
-                }
+                networkSync = GetComponent<LocalSudokuNetworkSync>() ?? gameObject.AddComponent<LocalSudokuNetworkSync>();
             }
         }
 
@@ -78,12 +107,19 @@ namespace SudokuVR.Gameplay
                 boardView.OnCellSelectedByUser += HandleCellSelectedByLocalPlayer;
             }
 
-            if (spatialNumpad != null)
+            if (boardAnchor != null)
             {
-                spatialNumpad.BuildProceduralLayout();
-                spatialNumpad.OnNumberSelected += HandleNumpadNumber;
-                spatialNumpad.OnEraseRequested += HandleNumpadErase;
-                spatialNumpad.OnClearRequested += HandleNumpadClearBoard;
+                boardAnchor.BuildBoundingFrame(boardView != null ? boardView.TotalBoardSpan : 0.6f);
+            }
+
+            if (floatingKeypad != null)
+            {
+                floatingKeypad.BuildProceduralKeypad();
+                floatingKeypad.OnNumberSelected += HandleInputDigit;
+                floatingKeypad.OnEraseRequested += HandleInputErase;
+                floatingKeypad.OnUndoRequested += HandleInputUndo;
+                floatingKeypad.OnPencilToggled += HandleInputPencilToggled;
+                floatingKeypad.OnHintRequested += HandleInputHintRequested;
             }
 
             if (networkSync != null)
@@ -106,6 +142,11 @@ namespace SudokuVR.Gameplay
         public void StartNewGame(Difficulty difficulty)
         {
             CurrentDifficulty = difficulty;
+            _mistakeCount = 0;
+            _isGameOver = false;
+            _moveHistory.Clear();
+
+            OnMistakesUpdated?.Invoke(_mistakeCount, maxMistakesAllowed);
 
             Stopwatch sw = Stopwatch.StartNew();
             bool success = _generator.Generate(difficulty, _puzzleBuffer, _solutionBuffer);
@@ -117,7 +158,6 @@ namespace SudokuVR.Gameplay
                 return;
             }
 
-            // Count initial clues
             int initialClues = 0;
             for (int i = 0; i < SudokuData.CellCount; i++)
             {
@@ -125,27 +165,64 @@ namespace SudokuVR.Gameplay
             }
 
             _boardState.Initialize(_puzzleBuffer, _solutionBuffer);
+
             if (boardView != null)
             {
                 boardView.RefreshAllCells(_boardState);
             }
 
-            // Metrics Telemetry
-            Debug.Log($"<color=#00E5FF><b>[SudokuVR Metrics]</b></color> New Game Initialized! " +
+            if (floatingKeypad != null)
+            {
+                floatingKeypad.UpdateRemainingCounts(_boardState);
+                floatingKeypad.SetPencilMode(false);
+            }
+
+            if (timerSystem != null)
+            {
+                timerSystem.ResetTimer();
+                timerSystem.StartTimer();
+            }
+
+            if (scoringEngine != null)
+            {
+                scoringEngine.ResetScore();
+            }
+
+            Debug.Log($"<color=#00E5FF><b>[Zenith Sudoku XR]</b></color> New Game Initialized! " +
                       $"Difficulty: <b>{difficulty}</b> | " +
                       $"Clues: <b>{initialClues}/81</b> | " +
-                      $"Gen Time: <b>{sw.ElapsedMilliseconds}ms</b> ({sw.ElapsedTicks} ticks) | " +
-                      $"Validation: <b>Unique Solution Confirmed</b>");
+                      $"Gen Time: <b>{sw.ElapsedMilliseconds}ms</b> | " +
+                      $"Validation: <b>Guaranteed Unique Single Solution</b>");
         }
 
         public void RestartCurrentGame()
         {
+            _mistakeCount = 0;
+            _isGameOver = false;
+            _moveHistory.Clear();
+            OnMistakesUpdated?.Invoke(_mistakeCount, maxMistakesAllowed);
+
             _boardState.Initialize(_puzzleBuffer, _solutionBuffer);
-            if (boardView != null)
+
+            if (boardView != null) boardView.RefreshAllCells(_boardState);
+            if (floatingKeypad != null) floatingKeypad.UpdateRemainingCounts(_boardState);
+            if (timerSystem != null)
             {
-                boardView.RefreshAllCells(_boardState);
+                timerSystem.ResetTimer();
+                timerSystem.StartTimer();
             }
-            Debug.Log("[SudokuVR] Board reset to initial clues.");
+            if (scoringEngine != null) scoringEngine.ResetScore();
+
+            Debug.Log("[Zenith Sudoku XR] Board reset to initial clues.");
+        }
+
+        public void ReviveGame()
+        {
+            _mistakeCount = 2; // Gives 1 more chance
+            _isGameOver = false;
+            OnMistakesUpdated?.Invoke(_mistakeCount, maxMistakesAllowed);
+            timerSystem?.ResumeTimer();
+            Debug.Log("[Zenith Sudoku XR] Player revived with 1 strike remaining!");
         }
 
         private void HandleCellSelectedByLocalPlayer(int row, int col)
@@ -154,52 +231,163 @@ namespace SudokuVR.Gameplay
             networkSync?.SendCellSelected(row, col, PlayerId.LocalPlayer);
         }
 
-        private void HandleNumpadNumber(int digit)
+        public void HandleInputDigit(int digit)
         {
-            if (boardView == null || !boardView.HasSelection) return;
+            if (_isGameOver || boardView == null || !boardView.HasSelection) return;
 
             int r = boardView.SelectedRow;
             int c = boardView.SelectedCol;
 
-            bool modified = _boardState.SetCell(r, c, digit, PlayerId.LocalPlayer);
-            if (modified)
+            if (_boardState.IsCellPrefilled(r, c)) return;
+
+            bool isPencilMode = floatingKeypad != null && floatingKeypad.IsPencilModeActive;
+
+            if (isPencilMode)
             {
-                networkSync?.SendCellModified(r, c, digit, PlayerId.LocalPlayer);
+                // In pencil mode, toggle candidate sub-digit
+                ushort prevNotes = _boardState.GetNotes(r, c);
+                _boardState.ToggleNote(r, c, digit);
+                ushort newNotes = _boardState.GetNotes(r, c);
+
+                _moveHistory.RecordMove(r, c, 0, 0, prevNotes, newNotes);
+            }
+            else
+            {
+                byte prevVal = _boardState.GetCellValue(r, c);
+                ushort prevNotes = _boardState.GetNotes(r, c);
+                byte solutionVal = _boardState.GetSolutionValue(r, c);
+
+                bool isCorrect = (digit == solutionVal);
+
+                if (!isCorrect)
+                {
+                    _mistakeCount++;
+                    scoringEngine?.RecordMistake();
+                    OnMistakesUpdated?.Invoke(_mistakeCount, maxMistakesAllowed);
+
+                    Debug.LogWarning($"[Zenith Sudoku XR] Mistake registered: ({r},{c}) = {digit}. Strike {_mistakeCount}/{maxMistakesAllowed}!");
+
+                    if (_mistakeCount >= maxMistakesAllowed)
+                    {
+                        TriggerGameOver(false);
+                        return;
+                    }
+                }
+                else
+                {
+                    scoringEngine?.RecordCorrectPlacement(CurrentDifficulty);
+                }
+
+                bool modified = _boardState.SetCell(r, c, digit, PlayerId.LocalPlayer);
+                if (modified)
+                {
+                    _moveHistory.RecordMove(r, c, prevVal, (byte)digit, prevNotes, 0);
+                    networkSync?.SendCellModified(r, c, digit, PlayerId.LocalPlayer);
+                    floatingKeypad?.UpdateRemainingCounts(_boardState);
+                }
             }
         }
 
-        private void HandleNumpadErase()
+        public void HandleInputErase()
         {
-            if (boardView == null || !boardView.HasSelection) return;
+            if (_isGameOver || boardView == null || !boardView.HasSelection) return;
 
             int r = boardView.SelectedRow;
             int c = boardView.SelectedCol;
 
-            bool modified = _boardState.SetCell(r, c, 0, PlayerId.LocalPlayer);
-            if (modified)
+            if (_boardState.IsCellPrefilled(r, c)) return;
+
+            byte prevVal = _boardState.GetCellValue(r, c);
+            ushort prevNotes = _boardState.GetNotes(r, c);
+
+            if (prevVal > 0)
             {
+                _boardState.SetCell(r, c, 0, PlayerId.LocalPlayer);
+                _moveHistory.RecordMove(r, c, prevVal, 0, prevNotes, 0);
                 networkSync?.SendCellModified(r, c, 0, PlayerId.LocalPlayer);
+                floatingKeypad?.UpdateRemainingCounts(_boardState);
+            }
+            else if (prevNotes > 0)
+            {
+                _boardState.ClearNotes(r, c);
+                _moveHistory.RecordMove(r, c, 0, 0, prevNotes, 0);
             }
         }
 
-        private void HandleNumpadClearBoard()
+        public void HandleInputUndo()
         {
-            RestartCurrentGame();
+            if (_isGameOver) return;
+
+            if (_moveHistory.TryUndo(out BoardMove move))
+            {
+                if (move.PreviousValue != move.NewValue)
+                {
+                    _boardState.SetCell(move.Row, move.Col, move.PreviousValue, PlayerId.LocalPlayer);
+                    floatingKeypad?.UpdateRemainingCounts(_boardState);
+                }
+
+                if (move.PreviousNotesMask != move.NewNotesMask)
+                {
+                    _boardState.SetNotes(move.Row, move.Col, move.PreviousNotesMask);
+                }
+
+                boardView?.SelectCell(move.Row, move.Col);
+            }
+        }
+
+        private void HandleInputPencilToggled(bool active)
+        {
+            // Pencil mode state updated in floatingKeypad
+        }
+
+        public void HandleInputHintRequested()
+        {
+            if (_isGameOver || hintService == null) return;
+
+            HintResult hint = hintService.GetSmartHint(_boardState);
+            if (hint.Found)
+            {
+                boardView?.SelectCell(hint.Row, hint.Col);
+                OnHintReceived?.Invoke(hint);
+                Debug.Log($"<color=#FFD700><b>[Smart Hint]</b></color> {hint.Technique}: {hint.Description}");
+            }
         }
 
         private void HandleBoardCompleted(bool isCompleted)
         {
-            if (isCompleted)
+            if (isCompleted && !_isGameOver)
             {
-                Debug.Log("<color=#34C759><b>[SudokuVR] CONGRATULATIONS! Puzzle successfully completed!</b></color>");
+                TriggerGameOver(true);
             }
+        }
+
+        private void TriggerGameOver(bool victory)
+        {
+            _isGameOver = true;
+            timerSystem?.PauseTimer();
+
+            float elapsed = timerSystem != null ? timerSystem.ElapsedSeconds : 0f;
+
+            if (victory)
+            {
+                scoringEngine?.CalculateFinalBonus(elapsed, CurrentDifficulty, _mistakeCount);
+                ProgressionManager.Instance?.RecordGameVictory(CurrentDifficulty, elapsed, _mistakeCount);
+
+                Debug.Log("<color=#34C759><b>[Zenith Sudoku XR] VICTORY! Puzzle solved with perfection!</b></color>");
+            }
+            else
+            {
+                ProgressionManager.Instance?.RecordGameDefeat();
+                Debug.LogWarning("<color=#FF3B30><b>[Zenith Sudoku XR] DEFEAT! 3 Strikes reached.</b></color>");
+            }
+
+            OnGameFinished?.Invoke(victory);
         }
 
         private void HandleEditorKeyboardInput()
         {
             if (Keyboard.current == null || boardView == null || !boardView.HasSelection) return;
 
-            // Digits 1-9
             for (int d = 1; d <= 9; d++)
             {
                 Key digitKey = Key.Digit1 + (d - 1);
@@ -207,15 +395,34 @@ namespace SudokuVR.Gameplay
 
                 if (Keyboard.current[digitKey].wasPressedThisFrame || Keyboard.current[numpadKey].wasPressedThisFrame)
                 {
-                    HandleNumpadNumber(d);
+                    HandleInputDigit(d);
                     return;
                 }
             }
 
-            // Erase / Backspace / Delete
             if (Keyboard.current.backspaceKey.wasPressedThisFrame || Keyboard.current.deleteKey.wasPressedThisFrame)
             {
-                HandleNumpadErase();
+                HandleInputErase();
+            }
+
+            // Undo shortcut: Ctrl+Z or Cmd+Z
+            if (Keyboard.current.zKey.wasPressedThisFrame &&
+               (Keyboard.current.leftCtrlKey.isPressed || Keyboard.current.leftCommandKey.isPressed))
+            {
+                HandleInputUndo();
+            }
+
+            // Pencil shortcut: N or P
+            if (Keyboard.current.pKey.wasPressedThisFrame || Keyboard.current.nKey.wasPressedThisFrame)
+            {
+                bool active = !floatingKeypad.IsPencilModeActive;
+                floatingKeypad.SetPencilMode(active);
+            }
+
+            // Hint shortcut: H
+            if (Keyboard.current.hKey.wasPressedThisFrame)
+            {
+                HandleInputHintRequested();
             }
 
             // Arrow navigation

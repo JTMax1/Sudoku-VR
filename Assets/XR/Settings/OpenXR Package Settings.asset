@@ -1443,7 +1443,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: feeef8d85de8db242bdda70cc7ff5acd, type: 3}
   m_Name: OculusTouchControllerProfile Standalone
   m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.Features.Interactions.OculusTouchControllerProfile
-  m_enabled: 0
+  m_enabled: 1
   nameUi: Oculus Touch Controller Profile
   version: 0.0.1
   featureIdInternal: com.unity.openxr.feature.input.oculustouch
@@ -3149,40 +3149,40 @@ MonoBehaviour:
   m_Name: Standalone
   m_EditorClassIdentifier: Unity.XR.OpenXR::UnityEngine.XR.OpenXR.OpenXRSettings
   features:
-  - {fileID: 699934697243163423}
-  - {fileID: 3486359763328919637}
-  - {fileID: -3701269729372230559}
-  - {fileID: -4067693844648265269}
-  - {fileID: 5667964752331628483}
-  - {fileID: 4762794637583598595}
-  - {fileID: -6575195978522099057}
-  - {fileID: -3243499259632720548}
-  - {fileID: 7887906027952006260}
-  - {fileID: 2670297606806342901}
-  - {fileID: 8970117608352995978}
-  - {fileID: 4163473511758606323}
-  - {fileID: -3531669552505145649}
-  - {fileID: -5736219414929660122}
-  - {fileID: 7483288070853573373}
-  - {fileID: -1167916229084299169}
-  - {fileID: 6638958121664998253}
-  - {fileID: -5054577752280032234}
-  - {fileID: -8836288951744057362}
   - {fileID: 6158679083826717541}
-  - {fileID: -7551014791227723294}
-  - {fileID: 8297518241359980720}
-  - {fileID: 569320781857941690}
-  - {fileID: -1828570951495690064}
-  - {fileID: 8439413969084608040}
-  - {fileID: 7598642113707430263}
-  - {fileID: -8288756173217058670}
+  - {fileID: -4067693844648265269}
+  - {fileID: -8836288951744057362}
+  - {fileID: 7887906027952006260}
+  - {fileID: -5736219414929660122}
+  - {fileID: 2670297606806342901}
   - {fileID: 1652548465636532158}
-  - {fileID: 8958844971064567895}
-  - {fileID: 4299710439080588233}
-  - {fileID: -1842735183282051867}
-  - {fileID: 7650790577680086271}
   - {fileID: -857659927183491690}
+  - {fileID: -5054577752280032234}
+  - {fileID: 8297518241359980720}
+  - {fileID: 7650790577680086271}
+  - {fileID: -3243499259632720548}
+  - {fileID: -6575195978522099057}
+  - {fileID: 569320781857941690}
+  - {fileID: -7551014791227723294}
+  - {fileID: -1842735183282051867}
+  - {fileID: 4762794637583598595}
+  - {fileID: 7598642113707430263}
+  - {fileID: 8439413969084608040}
+  - {fileID: -3701269729372230559}
+  - {fileID: 7483288070853573373}
+  - {fileID: 8970117608352995978}
+  - {fileID: -3531669552505145649}
+  - {fileID: -1167916229084299169}
   - {fileID: -4056425193858765976}
+  - {fileID: 8958844971064567895}
+  - {fileID: 3486359763328919637}
+  - {fileID: -1828570951495690064}
+  - {fileID: 4163473511758606323}
+  - {fileID: -8288756173217058670}
+  - {fileID: 699934697243163423}
+  - {fileID: 6638958121664998253}
+  - {fileID: 4299710439080588233}
+  - {fileID: 5667964752331628483}
   customLoaderName: 
   m_renderMode: 1
   m_latencyOptimization: 0

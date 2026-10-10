@@ -7,7 +7,7 @@ namespace SudokuVR.Interaction
     /// <summary>
     /// Multi-modal XR interactor supporting:
     /// 1. Direct VR Poke (colliders / fingertip triggers)
-    /// 2. VR Controller Pointer / Ray interaction
+    /// 2. VR Controller Pointer / Ray interaction (Meta Quest Touch Plus)
     /// 3. Editor mouse fallback for zero-friction debugging
     /// GC-optimized: pre-allocated raycast hit buffers, zero tick allocations.
     /// </summary>
@@ -18,18 +18,19 @@ namespace SudokuVR.Interaction
         [SerializeField] private Transform leftControllerRayOrigin;
 
         [Header("Raycast Configuration")]
-        [SerializeField] private float maxRayDistance = 3.0f;
+        [SerializeField] private float maxRayDistance = 3.5f;
         [SerializeField] private LayerMask interactableLayer = ~0;
 
         [Header("Line Visual (Optional)")]
         [SerializeField] private LineRenderer rayVisual;
 
-        // Pre-allocated hit buffer to guarantee zero GC allocations per frame
-        private readonly RaycastHit[] _hitBuffer = new RaycastHit[8];
+        private readonly RaycastHit[] _hitBuffer = new RaycastHit[12];
 
         private Camera _mainCamera;
-        private SudokuCellView _currentHoveredCell;
-        private SpatialNumpadButton _currentHoveredButton;
+        private Tile3DView _currentHoveredTile;
+        private TactileKeypadButton _currentHoveredKey;
+        private SudokuCellView _legacyHoveredCell;
+        private SpatialNumpadButton _legacyHoveredButton;
 
         private void Awake()
         {
@@ -42,7 +43,6 @@ namespace SudokuVR.Interaction
 
         private void Update()
         {
-            // Evaluate interactions without tick allocations
             PerformInteractionTick();
         }
 
@@ -58,7 +58,6 @@ namespace SudokuVR.Interaction
                 interactionRay = new Ray(rightControllerRayOrigin.position, rightControllerRayOrigin.forward);
                 hasRay = true;
 
-                // Check Meta XR / OpenXR trigger state
                 if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch) ||
                     OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
                 {
@@ -69,26 +68,31 @@ namespace SudokuVR.Interaction
             // 2. Fallback to Mouse Ray in Unity Editor / Desktop
             if (!hasRay || Application.isEditor)
             {
-                if (Mouse.current != null && _mainCamera != null)
+                if (Mouse.current != null)
                 {
-                    Vector2 mousePos = Mouse.current.position.ReadValue();
-                    interactionRay = _mainCamera.ScreenPointToRay(mousePos);
-                    hasRay = true;
-
-                    if (Mouse.current.leftButton.wasPressedThisFrame)
+                    if (_mainCamera == null) _mainCamera = Camera.main ?? FindAnyObjectByType<Camera>();
+                    if (_mainCamera != null)
                     {
-                        triggerPressed = true;
+                        Vector2 mousePos = Mouse.current.position.ReadValue();
+                        interactionRay = _mainCamera.ScreenPointToRay(mousePos);
+                        hasRay = true;
+
+                        if (Mouse.current.leftButton.wasPressedThisFrame)
+                        {
+                            triggerPressed = true;
+                        }
                     }
                 }
             }
 
             if (!hasRay) return;
 
-            // Perform non-allocating raycast
             int hitCount = Physics.RaycastNonAlloc(interactionRay, _hitBuffer, maxRayDistance, interactableLayer);
 
-            SudokuCellView hitCell = null;
-            SpatialNumpadButton hitButton = null;
+            Tile3DView hitTile = null;
+            TactileKeypadButton hitKey = null;
+            SudokuCellView legacyCell = null;
+            SpatialNumpadButton legacyBtn = null;
             float closestDist = float.MaxValue;
 
             for (int i = 0; i < hitCount; i++)
@@ -96,60 +100,62 @@ namespace SudokuVR.Interaction
                 RaycastHit hit = _hitBuffer[i];
                 if (hit.distance < closestDist)
                 {
-                    SudokuCellView cell = hit.collider.GetComponentInParent<SudokuCellView>();
-                    SpatialNumpadButton button = hit.collider.GetComponentInParent<SpatialNumpadButton>();
+                    Tile3DView tile = hit.collider.GetComponentInParent<Tile3DView>();
+                    TactileKeypadButton key = hit.collider.GetComponentInParent<TactileKeypadButton>();
+                    SudokuCellView c = hit.collider.GetComponentInParent<SudokuCellView>();
+                    SpatialNumpadButton b = hit.collider.GetComponentInParent<SpatialNumpadButton>();
 
-                    if (cell != null || button != null)
+                    if (tile != null || key != null || c != null || b != null)
                     {
                         closestDist = hit.distance;
-                        hitCell = cell;
-                        hitButton = button;
+                        hitTile = tile;
+                        hitKey = key;
+                        legacyCell = c;
+                        legacyBtn = b;
                     }
                 }
             }
 
-            // Update cell hover states
-            if (hitCell != _currentHoveredCell)
+            // Tile Hover
+            if (hitTile != _currentHoveredTile)
             {
-                if (_currentHoveredCell != null)
-                {
-                    _currentHoveredCell.TriggerUnhover();
-                }
-                _currentHoveredCell = hitCell;
-                if (_currentHoveredCell != null)
-                {
-                    _currentHoveredCell.TriggerHover();
-                }
+                _currentHoveredTile?.TriggerUnhover();
+                _currentHoveredTile = hitTile;
+                _currentHoveredTile?.TriggerHover();
             }
 
-            // Update button hover states
-            if (hitButton != _currentHoveredButton)
+            // Key Hover
+            if (hitKey != _currentHoveredKey)
             {
-                if (_currentHoveredButton != null)
-                {
-                    _currentHoveredButton.SetHover(false);
-                }
-                _currentHoveredButton = hitButton;
-                if (_currentHoveredButton != null)
-                {
-                    _currentHoveredButton.SetHover(true);
-                }
+                _currentHoveredKey?.SetHover(false);
+                _currentHoveredKey = hitKey;
+                _currentHoveredKey?.SetHover(true);
             }
 
-            // Trigger click
+            // Legacy Fallbacks
+            if (legacyCell != _legacyHoveredCell)
+            {
+                _legacyHoveredCell?.TriggerUnhover();
+                _legacyHoveredCell = legacyCell;
+                _legacyHoveredCell?.TriggerHover();
+            }
+            if (legacyBtn != _legacyHoveredButton)
+            {
+                _legacyHoveredButton?.SetHover(false);
+                _legacyHoveredButton = legacyBtn;
+                _legacyHoveredButton?.SetHover(true);
+            }
+
+            // Trigger Clicks
             if (triggerPressed)
             {
-                if (_currentHoveredCell != null)
-                {
-                    _currentHoveredCell.TriggerClick();
-                }
-                else if (_currentHoveredButton != null)
-                {
-                    _currentHoveredButton.TriggerPress();
-                }
+                if (_currentHoveredTile != null) _currentHoveredTile.TriggerClick();
+                else if (_currentHoveredKey != null) _currentHoveredKey.TriggerPress();
+                else if (_legacyHoveredCell != null) _legacyHoveredCell.TriggerClick();
+                else if (_legacyHoveredButton != null) _legacyHoveredButton.TriggerPress();
             }
 
-            // Update optional ray visual
+            // Line Visual
             if (rayVisual != null)
             {
                 rayVisual.enabled = true;
