@@ -32,15 +32,17 @@ namespace SudokuVR.Editor
 
             if (cameraRig != null)
             {
-                // Attach controller visual models & poke tips
+                // Remove any legacy XRHandPokeFinger that might overwrite anchor transforms
+                var legacyPokes = cameraRig.GetComponentsInChildren<XRHandPokeFinger>(true);
+                foreach (var p in legacyPokes) UnityEngine.Object.DestroyImmediate(p);
+
+                // Attach controller visual models
                 if (cameraRig.leftControllerAnchor != null)
                 {
                     var leftHelper = GetOrAddComponent<OVRControllerHelper>(cameraRig.leftControllerAnchor.gameObject);
                     SerializedObject soLeft = new SerializedObject(leftHelper);
                     soLeft.FindProperty("m_controller").enumValueIndex = (int)OVRInput.Controller.LTouch;
                     soLeft.ApplyModifiedPropertiesWithoutUndo();
-
-                    GetOrAddComponent<XRHandPokeFinger>(cameraRig.leftControllerAnchor.gameObject);
                 }
 
                 if (cameraRig.rightControllerAnchor != null)
@@ -49,18 +51,6 @@ namespace SudokuVR.Editor
                     SerializedObject soRight = new SerializedObject(rightHelper);
                     soRight.FindProperty("m_controller").enumValueIndex = (int)OVRInput.Controller.RTouch;
                     soRight.ApplyModifiedPropertiesWithoutUndo();
-
-                    GetOrAddComponent<XRHandPokeFinger>(cameraRig.rightControllerAnchor.gameObject);
-                }
-
-                // Attach Hand Poke triggers
-                if (cameraRig.leftHandAnchor != null)
-                {
-                    GetOrAddComponent<XRHandPokeFinger>(cameraRig.leftHandAnchor.gameObject);
-                }
-                if (cameraRig.rightHandAnchor != null)
-                {
-                    GetOrAddComponent<XRHandPokeFinger>(cameraRig.rightHandAnchor.gameObject);
                 }
             }
 
@@ -85,28 +75,8 @@ namespace SudokuVR.Editor
             SudokuGameManager gameManager = GetOrAddComponent<SudokuGameManager>(systemsRoot);
             CellInteractor interactor = GetOrAddComponent<CellInteractor>(systemsRoot);
 
-            Transform reticleChild = systemsRoot.transform.Find("VR_PointerReticle");
-            GameObject reticleObj;
-            if (reticleChild == null)
-            {
-                reticleObj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                reticleObj.name = "VR_PointerReticle";
-                reticleObj.transform.SetParent(systemsRoot.transform, false);
-                reticleObj.transform.localScale = Vector3.one * 0.018f;
-                var col = reticleObj.GetComponent<Collider>();
-                if (col != null) UnityEngine.Object.DestroyImmediate(col);
-
-                Shader s = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
-                var mat = new Material(s);
-                mat.color = new Color(0f, 0.75f, 1f, 0.45f);
-                var mr = reticleObj.GetComponent<MeshRenderer>();
-                if (mr != null) mr.sharedMaterial = mat;
-                reticleObj.SetActive(false);
-            }
-            else
-            {
-                reticleObj = reticleChild.gameObject;
-            }
+            Transform oldReticle = systemsRoot.transform.Find("VR_PointerReticle");
+            if (oldReticle != null) UnityEngine.Object.DestroyImmediate(oldReticle.gameObject);
 
             SerializedObject soInteractor = new SerializedObject(interactor);
             if (cameraRig != null)
@@ -116,7 +86,6 @@ namespace SudokuVR.Editor
                 soInteractor.FindProperty("rightHandRayOrigin").objectReferenceValue = cameraRig.rightHandAnchor;
                 soInteractor.FindProperty("leftHandRayOrigin").objectReferenceValue = cameraRig.leftHandAnchor;
             }
-            soInteractor.FindProperty("pointerReticle").objectReferenceValue = reticleObj;
             soInteractor.ApplyModifiedPropertiesWithoutUndo();
 
             // 4. Assemble Zen Studio Environment (minimalist backdrop when MR is disabled)
@@ -219,7 +188,7 @@ namespace SudokuVR.Editor
             hudObj.transform.localRotation = Quaternion.identity;
 
             SpatialHUDView hudView = GetOrAddComponent<SpatialHUDView>(hudObj);
-            BuildSpatialHUDVisuals(hudObj, hudView);
+            BuildSpatialHUDVisuals(hudObj, hudView, monolithRoot);
 
             // 8. Assemble Spatial Navigation Hub (Home Environment Console)
             GameObject hubRoot = GameObject.Find("SpatialHub_Navigation");
@@ -265,7 +234,7 @@ namespace SudokuVR.Editor
             Debug.Log("<color=#34C759><b>[Zenith XR Builder] SUCCESS!</b></color> Zenith Sudoku XR complete production architecture built and verified!");
         }
 
-        private static void BuildSpatialHUDVisuals(GameObject hudRoot, SpatialHUDView hudView)
+        private static void BuildSpatialHUDVisuals(GameObject hudRoot, SpatialHUDView hudView, GameObject monolithRoot)
         {
             Canvas canvas = hudRoot.GetComponent<Canvas>();
             if (canvas == null)
@@ -320,22 +289,61 @@ namespace SudokuVR.Editor
             hintRt.sizeDelta = new Vector2(700f, 40f);
             TMP_Text hintText = CreateTMPLabel(hintObj, "HintLabel", "", 20f, new Color(1f, 0.85f, 0.3f));
 
-            // 4. Pause Modal Panel
+            // 4. Dedicated In-Game Modals Canvas placed in FRONT of the board (Z = -0.065m)
+            Transform modalTransform = monolithRoot.transform.Find("InGame_Modals");
+            GameObject modalObj = (modalTransform != null) ? modalTransform.gameObject : new GameObject("InGame_Modals");
+            modalObj.transform.SetParent(monolithRoot.transform, false);
+            modalObj.transform.localPosition = new Vector3(0f, 0f, -0.065f); // 6.5cm in front of tiles
+            modalObj.transform.localRotation = Quaternion.identity;
+
+            Canvas modalCanvas = modalObj.GetComponent<Canvas>();
+            if (modalCanvas == null) modalCanvas = modalObj.AddComponent<Canvas>();
+            modalCanvas.renderMode = RenderMode.WorldSpace;
+            RectTransform modalRt = modalObj.GetComponent<RectTransform>();
+            modalRt.sizeDelta = new Vector2(750f, 550f);
+            modalRt.localScale = new Vector3(0.0008f, 0.0008f, 0.0008f);
+
+            // Clear old modal children if any
+            for (int i = modalObj.transform.childCount - 1; i >= 0; i--)
+            {
+                UnityEngine.Object.DestroyImmediate(modalObj.transform.GetChild(i).gameObject);
+            }
+
+            // Panel: Pause Modal
             GameObject pausePanel = new GameObject("Panel_PauseModal", typeof(RectTransform), typeof(Image));
-            pausePanel.transform.SetParent(hudRoot.transform, false);
+            pausePanel.transform.SetParent(modalObj.transform, false);
             RectTransform pauseRt = pausePanel.GetComponent<RectTransform>();
             pauseRt.anchoredPosition = new Vector2(0f, 0f);
-            pauseRt.sizeDelta = new Vector2(560f, 260f);
+            pauseRt.sizeDelta = new Vector2(620f, 320f);
             Image pauseBg = pausePanel.GetComponent<Image>();
-            pauseBg.color = new Color(0.08f, 0.10f, 0.15f, 0.96f);
+            pauseBg.color = new Color(0.06f, 0.08f, 0.12f, 0.98f);
 
-            CreateTMPLabel(pausePanel, "PauseTitle", "<color=#00E5FF><b>GAME PAUSED</b></color>", 32f, Color.white, new Vector2(0f, 85f));
-            CreateTMPLabel(pausePanel, "PauseSubtitle", "Tactile puzzle session on hold", 18f, new Color(0.7f, 0.8f, 0.9f), new Vector2(0f, 50f));
+            CreateTMPLabel(pausePanel, "PauseTitle", "<color=#00E5FF><b>GAME PAUSED</b></color>", 34f, Color.white, new Vector2(0f, 105f));
+            CreateTMPLabel(pausePanel, "PauseSubtitle", "Tactile puzzle session on hold", 18f, new Color(0.7f, 0.8f, 0.9f), new Vector2(0f, 65f));
 
-            Button resumeBtn = CreateSpatialUIButton(pausePanel, "Btn_Resume", "RESUME PUZZLE", new Vector2(0f, 0f), new Vector2(240f, 46f), new Color(0.15f, 0.75f, 0.45f));
-            Button restartBtn = CreateSpatialUIButton(pausePanel, "Btn_Restart", "RESTART PUZZLE", new Vector2(-130f, -65f), new Vector2(210f, 42f), new Color(0.85f, 0.55f, 0.15f));
-            Button pauseHomeBtn = CreateSpatialUIButton(pausePanel, "Btn_PauseHome", "RETURN TO HUB", new Vector2(130f, -65f), new Vector2(210f, 42f), new Color(0.35f, 0.40f, 0.50f));
+            Button resumeBtn = CreateSpatialUIButton(pausePanel, "Btn_Resume", "RESUME PUZZLE", new Vector2(0f, 15f), new Vector2(250f, 48f), new Color(0.12f, 0.75f, 0.45f));
+            Button restartBtn = CreateSpatialUIButton(pausePanel, "Btn_Restart", "RESTART PUZZLE", new Vector2(-140f, -50f), new Vector2(220f, 44f), new Color(0.85f, 0.55f, 0.15f));
+            Button pauseDiffBtn = CreateSpatialUIButton(pausePanel, "Btn_PauseDiff", "SELECT DIFFICULTY", new Vector2(140f, -50f), new Vector2(220f, 44f), new Color(0.15f, 0.55f, 0.85f));
+            Button pauseHomeBtn = CreateSpatialUIButton(pausePanel, "Btn_PauseHome", "RETURN TO HUB", new Vector2(0f, -110f), new Vector2(240f, 42f), new Color(0.30f, 0.35f, 0.45f));
             pausePanel.SetActive(false);
+
+            // Panel: End Screen / Victory Dialog
+            GameObject endScreenPanel = new GameObject("Panel_EndScreen", typeof(RectTransform), typeof(Image));
+            endScreenPanel.transform.SetParent(modalObj.transform, false);
+            RectTransform endRt = endScreenPanel.GetComponent<RectTransform>();
+            endRt.anchoredPosition = new Vector2(0f, 0f);
+            endRt.sizeDelta = new Vector2(640f, 360f);
+            Image endBg = endScreenPanel.GetComponent<Image>();
+            endBg.color = new Color(0.06f, 0.08f, 0.12f, 0.98f);
+
+            TMP_Text endTitleTmp = CreateTMPLabel(endScreenPanel, "EndTitle", "<color=#34C759><b>PUZZLE COMPLETED!</b></color>", 34f, Color.white, new Vector2(0f, 120f));
+            TMP_Text endSubTmp = CreateTMPLabel(endScreenPanel, "EndSubtitle", "Score: 1200 | Time: 02:45", 20f, new Color(0.85f, 0.90f, 1f), new Vector2(0f, 75f));
+
+            Button nextLevelBtn = CreateSpatialUIButton(endScreenPanel, "Btn_NextLevel", "NEXT LEVEL", new Vector2(0f, 20f), new Vector2(250f, 50f), new Color(0.12f, 0.82f, 0.42f));
+            Button diffSelectBtn = CreateSpatialUIButton(endScreenPanel, "Btn_DiffSelect", "SELECT DIFFICULTY", new Vector2(-145f, -50f), new Vector2(225f, 44f), new Color(0.15f, 0.55f, 0.85f));
+            Button playAgainBtn = CreateSpatialUIButton(endScreenPanel, "Btn_PlayAgain", "PLAY AGAIN", new Vector2(145f, -50f), new Vector2(225f, 44f), new Color(0.85f, 0.55f, 0.15f));
+            Button endHomeBtn = CreateSpatialUIButton(endScreenPanel, "Btn_EndHome", "RETURN TO HUB", new Vector2(0f, -115f), new Vector2(240f, 42f), new Color(0.30f, 0.35f, 0.45f));
+            endScreenPanel.SetActive(false);
 
             // Wire into SpatialHUDView
             SerializedObject so = new SerializedObject(hudView);
@@ -349,10 +357,21 @@ namespace SudokuVR.Editor
             so.FindProperty("passthroughButton").objectReferenceValue = mrBtn;
             so.FindProperty("recenterButton").objectReferenceValue = recenterBtn;
 
+            // Pause Modal Wirings
             so.FindProperty("pausePanel").objectReferenceValue = pausePanel;
             so.FindProperty("resumeButton").objectReferenceValue = resumeBtn;
             so.FindProperty("restartButton").objectReferenceValue = restartBtn;
+            so.FindProperty("pauseDifficultyButton").objectReferenceValue = pauseDiffBtn;
             so.FindProperty("pauseHomeButton").objectReferenceValue = pauseHomeBtn;
+
+            // End Screen Wirings
+            so.FindProperty("endScreenPanel").objectReferenceValue = endScreenPanel;
+            so.FindProperty("endTitleText").objectReferenceValue = endTitleTmp;
+            so.FindProperty("endSubText").objectReferenceValue = endSubTmp;
+            so.FindProperty("nextLevelButton").objectReferenceValue = nextLevelBtn;
+            so.FindProperty("difficultySelectButton").objectReferenceValue = diffSelectBtn;
+            so.FindProperty("playAgainButton").objectReferenceValue = playAgainBtn;
+            so.FindProperty("returnHomeButton").objectReferenceValue = endHomeBtn;
 
             so.ApplyModifiedPropertiesWithoutUndo();
         }
@@ -599,7 +618,7 @@ namespace SudokuVR.Editor
             tmp.text = label;
 
             BoxCollider box = btnObj.AddComponent<BoxCollider>();
-            box.size = new Vector3(size.x, size.y, 4f);
+            box.size = new Vector3(size.x, size.y, 40f);
 
             return btn;
         }

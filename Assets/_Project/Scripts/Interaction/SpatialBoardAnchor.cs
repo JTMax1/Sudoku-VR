@@ -127,8 +127,22 @@ namespace SudokuVR.Interaction
                 rightRot = pointer.rotation;
                 rightForward = pointer.forward;
 
-                rightGripPressed = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) ||
-                                   _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Pinky);
+                bool isMiddlePinch = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) || _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Middle) > 0.35f;
+                bool isRingGrip = _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Ring) > 0.35f;
+                bool isPinkyGrip = _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Pinky) > 0.35f;
+                bool isIndexPinch = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Index) || _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.50f;
+
+                rightGripPressed = isMiddlePinch || isRingGrip || isPinkyGrip;
+                if (!rightGripPressed && isIndexPinch)
+                {
+                    // Pinch near handles, perimeter frame, or distance ray grab
+                    float dHandleL = leftGrabTab != null ? Vector3.Distance(rightPos, leftGrabTab.position) : 999f;
+                    float dHandleR = rightGrabTab != null ? Vector3.Distance(rightPos, rightGrabTab.position) : 999f;
+                    if (dHandleL < 0.28f || dHandleR < 0.28f || _isGrabbedRight)
+                    {
+                        rightGripPressed = true;
+                    }
+                }
             }
             else if (_cameraRig?.rightControllerAnchor != null)
             {
@@ -137,7 +151,7 @@ namespace SudokuVR.Interaction
                 rightForward = _cameraRig.rightControllerAnchor.forward;
 
                 rightGripPressed = OVRInput.Get(OVRInput.Button.PrimaryHandTrigger, OVRInput.Controller.RTouch) ||
-                                   OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, OVRInput.Controller.RTouch) > 0.45f;
+                                   OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, OVRInput.Controller.RTouch) > 0.25f;
             }
 
             // 2. Left Hand / Controller
@@ -148,8 +162,21 @@ namespace SudokuVR.Interaction
                 leftRot = pointer.rotation;
                 leftForward = pointer.forward;
 
-                leftGripPressed = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) ||
-                                  _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Pinky);
+                bool isMiddlePinch = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) || _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Middle) > 0.35f;
+                bool isRingGrip = _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Ring) > 0.35f;
+                bool isPinkyGrip = _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Pinky) > 0.35f;
+                bool isIndexPinch = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Index) || _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.50f;
+
+                leftGripPressed = isMiddlePinch || isRingGrip || isPinkyGrip;
+                if (!leftGripPressed && isIndexPinch)
+                {
+                    float dHandleL = leftGrabTab != null ? Vector3.Distance(leftPos, leftGrabTab.position) : 999f;
+                    float dHandleR = rightGrabTab != null ? Vector3.Distance(leftPos, rightGrabTab.position) : 999f;
+                    if (dHandleL < 0.28f || dHandleR < 0.28f || _isGrabbedLeft)
+                    {
+                        leftGripPressed = true;
+                    }
+                }
             }
             else if (_cameraRig?.leftControllerAnchor != null)
             {
@@ -158,21 +185,37 @@ namespace SudokuVR.Interaction
                 leftForward = _cameraRig.leftControllerAnchor.forward;
 
                 leftGripPressed = OVRInput.Get(OVRInput.Button.PrimaryHandTrigger, OVRInput.Controller.LTouch) ||
-                                  OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, OVRInput.Controller.LTouch) > 0.45f;
+                                  OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, OVRInput.Controller.LTouch) > 0.25f;
             }
 
             // 3. Proximity and Ray Checks
             float distRightToBoard = Vector3.Distance(rightPos, transform.position);
             float distLeftToBoard = Vector3.Distance(leftPos, transform.position);
 
-            bool proximityRight = distRightToBoard <= (grabRadius * transform.localScale.x);
-            bool proximityLeft = distLeftToBoard <= (grabRadius * transform.localScale.x);
+            bool proximityRight = distRightToBoard <= (grabRadius * 1.5f * transform.localScale.x);
+            bool proximityLeft = distLeftToBoard <= (grabRadius * 1.5f * transform.localScale.x);
 
             // Distance Ray check: Is the ray pointing near the board?
             Ray rightRay = new Ray(rightPos, rightForward);
             Ray leftRay = new Ray(leftPos, leftForward);
             bool rayRightAiming = IsRayAimingAtBoard(rightRay, out float hitDistRight);
             bool rayLeftAiming = IsRayAimingAtBoard(leftRay, out float hitDistLeft);
+
+            // If index pinch with tracked hand at a distance, allow distance grab if aiming at frame/board
+            if (_rightHand != null && _rightHand.IsTracked && !rightGripPressed)
+            {
+                if (rayRightAiming && (_rightHand.GetFingerIsPinching(OVRHand.HandFinger.Index) || _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.6f))
+                {
+                    rightGripPressed = true;
+                }
+            }
+            if (_leftHand != null && _leftHand.IsTracked && !leftGripPressed)
+            {
+                if (rayLeftAiming && (_leftHand.GetFingerIsPinching(OVRHand.HandFinger.Index) || _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.6f))
+                {
+                    leftGripPressed = true;
+                }
+            }
 
             // RIGHT HAND GRAB TRIGGER
             if (rightGripPressed && !_isGrabbedRight)
@@ -181,7 +224,7 @@ namespace SudokuVR.Interaction
                 {
                     _isGrabbedRight = true;
                     _isDistanceGrabRight = false;
-                    _grabOffsetRight = transform.position - rightPos;
+                    _grabOffsetRight = Quaternion.Inverse(rightRot) * (transform.position - rightPos);
                     _grabRotOffsetRight = Quaternion.Inverse(rightRot) * transform.rotation;
                 }
                 else if (rayRightAiming)
@@ -205,7 +248,7 @@ namespace SudokuVR.Interaction
                 {
                     _isGrabbedLeft = true;
                     _isDistanceGrabLeft = false;
-                    _grabOffsetLeft = transform.position - leftPos;
+                    _grabOffsetLeft = Quaternion.Inverse(leftRot) * (transform.position - leftPos);
                     _grabRotOffsetLeft = Quaternion.Inverse(leftRot) * transform.rotation;
                 }
                 else if (rayLeftAiming)
@@ -273,7 +316,8 @@ namespace SudokuVR.Interaction
                 }
                 else
                 {
-                    transform.position = rightPos + _grabOffsetRight;
+                    transform.position = rightPos + rightRot * _grabOffsetRight;
+                    transform.rotation = rightRot * _grabRotOffsetRight;
                 }
             }
             // 6. One-Handed Reposition (Left Hand)
@@ -294,7 +338,8 @@ namespace SudokuVR.Interaction
                 }
                 else
                 {
-                    transform.position = leftPos + _grabOffsetLeft;
+                    transform.position = leftPos + leftRot * _grabOffsetLeft;
+                    transform.rotation = leftRot * _grabRotOffsetLeft;
                 }
             }
             else

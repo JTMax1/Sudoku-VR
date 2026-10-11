@@ -31,12 +31,15 @@ namespace SudokuVR.UI
         [SerializeField] private GameObject pausePanel;
         [SerializeField] private Button resumeButton;
         [SerializeField] private Button restartButton;
+        [SerializeField] private Button pauseDifficultyButton;
         [SerializeField] private Button pauseHomeButton;
 
         [Header("Game Over / Victory Dialog Panel")]
         [SerializeField] private GameObject endScreenPanel;
         [SerializeField] private TMP_Text endTitleText;
         [SerializeField] private TMP_Text endSubText;
+        [SerializeField] private Button nextLevelButton;
+        [SerializeField] private Button difficultySelectButton;
         [SerializeField] private Button playAgainButton;
         [SerializeField] private Button reviveButton;
         [SerializeField] private Button returnHomeButton;
@@ -78,9 +81,12 @@ namespace SudokuVR.UI
             // Pause Modal Buttons
             if (resumeButton != null) resumeButton.onClick.AddListener(OnResumeClicked);
             if (restartButton != null) restartButton.onClick.AddListener(OnRestartClicked);
+            if (pauseDifficultyButton != null) pauseDifficultyButton.onClick.AddListener(OnDifficultySelectClicked);
             if (pauseHomeButton != null) pauseHomeButton.onClick.AddListener(OnReturnHomeClicked);
 
             // End Screen Buttons
+            if (nextLevelButton != null) nextLevelButton.onClick.AddListener(OnNextLevelClicked);
+            if (difficultySelectButton != null) difficultySelectButton.onClick.AddListener(OnDifficultySelectClicked);
             if (playAgainButton != null) playAgainButton.onClick.AddListener(OnPlayAgainClicked);
             if (reviveButton != null) reviveButton.onClick.AddListener(OnReviveClicked);
             if (returnHomeButton != null) returnHomeButton.onClick.AddListener(OnReturnHomeClicked);
@@ -226,8 +232,11 @@ namespace SudokuVR.UI
                     string time = _gameManager != null && _gameManager.Timer != null ? TimerSystem.FormatTime(_gameManager.Timer.ElapsedSeconds) : "00:00";
                     endSubText.text = $"Score: <b>{finalScore}</b> | Time: <b>{time}</b>";
                 }
-                if (reviveButton != null) reviveButton.gameObject.SetActive(false);
+                if (nextLevelButton != null) nextLevelButton.gameObject.SetActive(true);
+                if (difficultySelectButton != null) difficultySelectButton.gameObject.SetActive(true);
                 if (playAgainButton != null) playAgainButton.gameObject.SetActive(true);
+                if (returnHomeButton != null) returnHomeButton.gameObject.SetActive(true);
+                if (reviveButton != null) reviveButton.gameObject.SetActive(false);
             }
             else
             {
@@ -237,10 +246,38 @@ namespace SudokuVR.UI
                 }
                 if (endSubText != null)
                 {
-                    endSubText.text = "You reached the 3-mistake limit. Try again or use a brain revive token!";
+                    endSubText.text = "You reached the 3-mistake limit. Try again or return to hub!";
                 }
-                if (reviveButton != null) reviveButton.gameObject.SetActive(true);
+                if (nextLevelButton != null) nextLevelButton.gameObject.SetActive(false);
+                if (difficultySelectButton != null) difficultySelectButton.gameObject.SetActive(true);
                 if (playAgainButton != null) playAgainButton.gameObject.SetActive(true);
+                if (returnHomeButton != null) returnHomeButton.gameObject.SetActive(true);
+                if (reviveButton != null) reviveButton.gameObject.SetActive(true);
+            }
+        }
+
+        private void OnNextLevelClicked()
+        {
+            if (endScreenPanel != null) endScreenPanel.SetActive(false);
+            if (_gameManager != null)
+            {
+                int currentIdx = (int)_gameManager.CurrentDifficulty;
+                Difficulty nextDiff = (Difficulty)Mathf.Clamp(currentIdx + 1, 0, 5);
+                _gameManager.StartNewGame(nextDiff);
+                UpdateDifficultyBadge(nextDiff);
+            }
+        }
+
+        private void OnDifficultySelectClicked()
+        {
+            if (endScreenPanel != null) endScreenPanel.SetActive(false);
+            if (pausePanel != null) pausePanel.SetActive(false);
+            _gameManager?.PauseGame();
+
+            MainMenuController home = FindAnyObjectByType<MainMenuController>(FindObjectsInactive.Include);
+            if (home != null)
+            {
+                home.ShowDifficultyModal();
             }
         }
 

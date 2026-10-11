@@ -687,7 +687,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 574443941}
-  - component: {fileID: 574443942}
   m_Layer: 0
   m_Name: LeftHandAnchor
   m_TagString: Untagged
@@ -713,21 +712,6 @@ Transform:
   - {fileID: 1146076659}
   m_Father: {fileID: 1144568449}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &574443942
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 574443940}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a1ad68c377bcc4d21bba9b1c253e1800, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SudokuVR.Interaction.XRHandPokeFinger
-  handType: 1
-  pokeRadius: 0.015
-  controllerTipOffset: {x: 0, y: -0.02, z: 0.06}
 --- !u!1 &595561180
 GameObject:
   m_ObjectHideFlags: 0
@@ -906,7 +890,6 @@ GameObject:
   m_Component:
   - component: {fileID: 625003974}
   - component: {fileID: 625003976}
-  - component: {fileID: 625003975}
   m_Layer: 0
   m_Name: LeftControllerAnchor
   m_TagString: Untagged
@@ -929,21 +912,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 574443941}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &625003975
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 625003973}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a1ad68c377bcc4d21bba9b1c253e1800, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SudokuVR.Interaction.XRHandPokeFinger
-  handType: 1
-  pokeRadius: 0.015
-  controllerTipOffset: {x: 0, y: -0.02, z: 0.06}
 --- !u!114 &625003976
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1051,60 +1019,6 @@ Transform:
   - {fileID: 90043081}
   m_Father: {fileID: 574443941}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!21 &961984710
-Material:
-  serializedVersion: 8
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_Name: Universal Render Pipeline/Unlit
-  m_Shader: {fileID: 4800000, guid: 650dd9526735d5b46b79224bc6e94025, type: 3}
-  m_Parent: {fileID: 0}
-  m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
-  m_InvalidKeywords: []
-  m_LightmapFlags: 4
-  m_EnableInstancingVariants: 0
-  m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
-  stringTagMap: {}
-  disabledShaderPasses: []
-  m_LockedProperties: 
-  m_SavedProperties:
-    serializedVersion: 3
-    m_TexEnvs:
-    - _BaseMap:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    - _MainTex:
-        m_Texture: {fileID: 0}
-        m_Scale: {x: 1, y: 1}
-        m_Offset: {x: 0, y: 0}
-    m_Ints: []
-    m_Floats:
-    - _AddPrecomputedVelocity: 0
-    - _AlphaClip: 0
-    - _AlphaToMask: 0
-    - _Blend: 0
-    - _BlendOp: 0
-    - _Cull: 2
-    - _Cutoff: 0.5
-    - _DstBlend: 0
-    - _DstBlendAlpha: 0
-    - _QueueOffset: 0
-    - _SampleGI: 0
-    - _SrcBlend: 1
-    - _SrcBlendAlpha: 1
-    - _Surface: 0
-    - _XRMotionVectorsPass: 1
-    - _ZWrite: 1
-    m_Colors:
-    - _BaseColor: {r: 0, g: 0.75, b: 1, a: 0.45}
-    - _Color: {r: 0.5, g: 0.5, b: 0.5, a: 1}
-  m_BuildTextureStacks: []
-  m_AllowLocking: 1
 --- !u!1 &970647832
 GameObject:
   m_ObjectHideFlags: 0
@@ -1614,11 +1528,15 @@ MonoBehaviour:
   interactableLayer:
     serializedVersion: 2
     m_Bits: 4294967295
-  rayVisual: {fileID: 0}
-  pointerReticle: {fileID: 1200387243}
   rayNormalColor: {r: 0, g: 0.75, b: 1, a: 0.45}
   rayHoverColor: {r: 0, g: 1, b: 0.75, a: 0.85}
   rayClickColor: {r: 1, g: 0.9, b: 0.2, a: 1}
+  rightRayVisual: {fileID: 0}
+  rightPointerReticle: {fileID: 0}
+  leftRayVisual: {fileID: 0}
+  leftPointerReticle: {fileID: 0}
+  rightPokeOrb: {fileID: 0}
+  leftPokeOrb: {fileID: 0}
 --- !u!114 &1156947997
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1743,99 +1661,8 @@ Transform:
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 1200387246}
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1200387243
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 1200387246}
-  - component: {fileID: 1200387245}
-  - component: {fileID: 1200387244}
-  m_Layer: 0
-  m_Name: VR_PointerReticle
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 0
---- !u!23 &1200387244
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1200387243}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RayTracingAccelStructBuildFlagsOverride: 0
-  m_RayTracingAccelStructBuildFlags: 1
-  m_SmallMeshCulling: 1
-  m_ForceMeshLod: -1
-  m_MeshLodSelectionBias: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 961984710}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 1
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_GlobalIlluminationMeshLod: 0
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_MaskInteraction: 0
-  m_AdditionalVertexStreams: {fileID: 0}
---- !u!33 &1200387245
-MeshFilter:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1200387243}
-  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
---- !u!4 &1200387246
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1200387243}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.018, y: 0.018, z: 0.018}
-  m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 1156948005}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1218194585
 GameObject:
@@ -1942,7 +1769,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1335512886}
   - component: {fileID: 1335512888}
-  - component: {fileID: 1335512887}
   m_Layer: 0
   m_Name: RightControllerAnchor
   m_TagString: Untagged
@@ -1965,21 +1791,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1521203756}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1335512887
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1335512885}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a1ad68c377bcc4d21bba9b1c253e1800, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SudokuVR.Interaction.XRHandPokeFinger
-  handType: 1
-  pokeRadius: 0.015
-  controllerTipOffset: {x: 0, y: -0.02, z: 0.06}
 --- !u!114 &1335512888
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2061,7 +1872,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1521203756}
-  - component: {fileID: 1521203757}
   m_Layer: 0
   m_Name: RightHandAnchor
   m_TagString: Untagged
@@ -2087,21 +1897,6 @@ Transform:
   - {fileID: 970647833}
   m_Father: {fileID: 1144568449}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1521203757
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1521203755}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a1ad68c377bcc4d21bba9b1c253e1800, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::SudokuVR.Interaction.XRHandPokeFinger
-  handType: 1
-  pokeRadius: 0.015
-  controllerTipOffset: {x: 0, y: -0.02, z: 0.06}
 --- !u!1 &1566558744
 GameObject:
   m_ObjectHideFlags: 0
@@ -2483,22 +2278,6 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 1239912395023311647, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMax.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1239912395023311647, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1239912395023311647, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMin.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 1239912395023311647, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 0
-      objectReference: {fileID: 0}
     - target: {fileID: 1497433447262206449, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
       propertyPath: passthroughLayer
       value: 
@@ -2507,73 +2286,9 @@ PrefabInstance:
       propertyPath: zenEnvironmentRoot
       value: 
       objectReference: {fileID: 1301385767}
-    - target: {fileID: 2296857347064337458, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMax.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2296857347064337458, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2296857347064337458, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMin.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 2296857347064337458, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 0
-      objectReference: {fileID: 0}
     - target: {fileID: 4171837821118202683, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
       propertyPath: m_Name
       value: SpatialBoard_Monolith
-      objectReference: {fileID: 0}
-    - target: {fileID: 4594037664187454336, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_TextStyleHashCode
-      value: -1183493901
-      objectReference: {fileID: 0}
-    - target: {fileID: 4672812203412870639, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_fontColor32.rgba
-      value: 4294957312
-      objectReference: {fileID: 0}
-    - target: {fileID: 4672812203412870639, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_TextStyleHashCode
-      value: -1183493901
-      objectReference: {fileID: 0}
-    - target: {fileID: 4682967924064042206, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMax.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4682967924064042206, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4682967924064042206, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMin.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 4682967924064042206, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6836324926161239428, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMax.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6836324926161239428, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMax.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6836324926161239428, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMin.x
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 6836324926161239428, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_AnchorMin.y
-      value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 7562548705292266834, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_TextStyleHashCode
-      value: -1183493901
       objectReference: {fileID: 0}
     - target: {fileID: 8014775897820407074, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
       propertyPath: m_LocalPosition.x
@@ -2614,14 +2329,6 @@ PrefabInstance:
     - target: {fileID: 8014775897820407074, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
-      objectReference: {fileID: 0}
-    - target: {fileID: 8590266813458595928, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_fontColor32.rgba
-      value: 4281588223
-      objectReference: {fileID: 0}
-    - target: {fileID: 8590266813458595928, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
-      propertyPath: m_TextStyleHashCode
-      value: -1183493901
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

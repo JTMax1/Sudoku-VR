@@ -7,14 +7,13 @@ using SudokuVR.Gameplay;
 namespace SudokuVR.Interaction
 {
     /// <summary>
-    /// Comprehensive multi-modal XR interactor for Meta Quest 3 (Horizon OS).
-    /// Supports:
-    /// 1. Meta Quest Touch Controllers (Ray pointing + Trigger click + Haptic pulses)
-    /// 2. Tracked Hands (Pinch-to-click + Hand Pointer Pose)
-    /// 3. Direct 3D tile and tactile keypad button interactions
-    /// 4. World-space Canvas UI button interactions (MainMenu, Modals, Battle, Passport)
-    /// 5. Editor Mouse & Keyboard fallback
-    /// Zero garbage collection allocations in tick loops.
+    /// Multi-modal XR interactor for Meta Quest 3 (Horizon OS).
+    /// Provides independent, simultaneous dual-hand interaction:
+    /// 1. Dual Ray Point & Click (Independent Right & Left hands/controllers with custom reticles)
+    /// 2. Dual Direct Index Fingertip Poking (Physical contact on 3D tiles, tactile keys, and UI buttons)
+    /// 3. Haptic feedback pulses per-hand
+    /// 4. Editor Mouse & Keyboard fallback
+    /// Zero garbage collection allocations in update loops.
     /// </summary>
     public class CellInteractor : MonoBehaviour
     {
@@ -28,31 +27,63 @@ namespace SudokuVR.Interaction
         [SerializeField] private float maxRayDistance = 4.0f;
         [SerializeField] private LayerMask interactableLayer = ~0;
 
-        [Header("Laser Visuals")]
-        [SerializeField] private LineRenderer rayVisual;
-        [SerializeField] private GameObject pointerReticle;
+        [Header("Laser Colors")]
         [SerializeField] private Color rayNormalColor = new Color(0f, 0.75f, 1f, 0.45f);
         [SerializeField] private Color rayHoverColor = new Color(0f, 1f, 0.75f, 0.85f);
         [SerializeField] private Color rayClickColor = new Color(1f, 0.9f, 0.2f, 1f);
 
-        private readonly RaycastHit[] _hitBuffer = new RaycastHit[16];
+        // Ray Visuals per hand
+        [Header("Pointers (Auto-created if null)")]
+        [SerializeField] private LineRenderer rightRayVisual;
+        [SerializeField] private GameObject rightPointerReticle;
+        [SerializeField] private LineRenderer leftRayVisual;
+        [SerializeField] private GameObject leftPointerReticle;
+
+        // Fingertip Poke visuals per hand
+        [Header("Poke Tip Visuals")]
+        [SerializeField] private GameObject rightPokeOrb;
+        [SerializeField] private GameObject leftPokeOrb;
 
         private Camera _mainCamera;
         private OVRCameraRig _cameraRig;
         private OVRHand _rightHand;
         private OVRHand _leftHand;
+        private OVRSkeleton _rightSkeleton;
+        private OVRSkeleton _leftSkeleton;
+        private Transform _rightIndexTipBone;
+        private Transform _leftIndexTipBone;
 
-        private Tile3DView _currentHoveredTile;
-        private TactileKeypadButton _currentHoveredKey;
-        private Button _currentHoveredUIButton;
-        private SpatialNumpadButton _currentHoveredLegacyBtn;
-        private SudokuCellView _currentHoveredLegacyCell;
+        private Material _rightReticleMat;
+        private Material _leftReticleMat;
 
+        // Hit Buffers (preallocated zero GC)
+        private readonly RaycastHit[] _rightHitBuffer = new RaycastHit[16];
+        private readonly RaycastHit[] _leftHitBuffer = new RaycastHit[16];
+        private readonly Collider[] _pokeOverlapBuffer = new Collider[16];
+
+        // Hover States Right Hand
+        private Tile3DView _rightHoveredTile;
+        private TactileKeypadButton _rightHoveredKey;
+        private Button _rightHoveredUIButton;
+        private SpatialNumpadButton _rightHoveredLegacyBtn;
+        private SudokuCellView _rightHoveredLegacyCell;
+
+        // Hover States Left Hand
+        private Tile3DView _leftHoveredTile;
+        private TactileKeypadButton _leftHoveredKey;
+        private Button _leftHoveredUIButton;
+        private SpatialNumpadButton _leftHoveredLegacyBtn;
+        private SudokuCellView _leftHoveredLegacyCell;
+
+        // Previous Input States
         private bool _wasPinchingRight;
         private bool _wasPinchingLeft;
         private bool _wasRightTriggerDown;
         private bool _wasLeftTriggerDown;
-        private Material _reticleMaterial;
+
+        // Poke Cooldowns
+        private float _lastPokeTimeRight;
+        private float _lastPokeTimeLeft;
 
         private void Awake()
         {
@@ -60,7 +91,8 @@ namespace SudokuVR.Interaction
             _cameraRig = FindAnyObjectByType<OVRCameraRig>();
 
             AutoBindRigTransforms();
-            EnsureLaserVisual();
+            EnsureLaserVisuals();
+            EnsurePokeOrbVisuals();
         }
 
         private void Start()
@@ -74,188 +106,266 @@ namespace SudokuVR.Interaction
             if (_cameraRig != null)
             {
                 if (rightControllerRayOrigin == null && _cameraRig.rightControllerAnchor != null)
-                {
                     rightControllerRayOrigin = _cameraRig.rightControllerAnchor;
-                }
                 if (leftControllerRayOrigin == null && _cameraRig.leftControllerAnchor != null)
-                {
                     leftControllerRayOrigin = _cameraRig.leftControllerAnchor;
-                }
                 if (rightHandRayOrigin == null && _cameraRig.rightHandAnchor != null)
-                {
                     rightHandRayOrigin = _cameraRig.rightHandAnchor;
-                }
                 if (leftHandRayOrigin == null && _cameraRig.leftHandAnchor != null)
-                {
                     leftHandRayOrigin = _cameraRig.leftHandAnchor;
-                }
 
-                _rightHand = _cameraRig.rightHandAnchor?.GetComponentInChildren<OVRHand>();
-                _leftHand = _cameraRig.leftHandAnchor?.GetComponentInChildren<OVRHand>();
+                if (_rightHand == null && _cameraRig.rightHandAnchor != null)
+                {
+                    _rightHand = _cameraRig.rightHandAnchor.GetComponentInChildren<OVRHand>();
+                    _rightSkeleton = _cameraRig.rightHandAnchor.GetComponentInChildren<OVRSkeleton>();
+                }
+                if (_leftHand == null && _cameraRig.leftHandAnchor != null)
+                {
+                    _leftHand = _cameraRig.leftHandAnchor.GetComponentInChildren<OVRHand>();
+                    _leftSkeleton = _cameraRig.leftHandAnchor.GetComponentInChildren<OVRSkeleton>();
+                }
             }
         }
 
         private void Update()
         {
-            PerformInteractionTick();
+            // Re-bind if hands initialized late
+            if (_rightHand == null || _leftHand == null)
+            {
+                AutoBindRigTransforms();
+            }
+
+            // 1. Process Direct Index Fingertip Poking (Both Hands)
+            ProcessDirectFingertipPoke(true);  // Right Hand Poke
+            ProcessDirectFingertipPoke(false); // Left Hand Poke
+
+            // 2. Process Independent Raycast Pointers (Both Hands)
+            ProcessHandPointer(true);  // Right Hand Pointer
+            ProcessHandPointer(false); // Left Hand Pointer
+
+            // 3. Editor Mouse Fallback
+            if (Application.isEditor)
+            {
+                ProcessEditorMouseFallback();
+            }
         }
 
-        private void PerformInteractionTick()
+        #region Direct Fingertip Poking
+
+        private void ProcessDirectFingertipPoke(bool isRight)
         {
-            Ray interactionRay = default;
-            bool hasRay = false;
-            bool triggerPressed = false;
-            Transform activeOrigin = null;
-
-            // 1. Evaluate Hand Tracking Pinch states
-            bool rightPinching = false;
-            bool leftPinching = false;
-            Ray rightHandRay = default;
-            Ray leftHandRay = default;
-            bool hasRightHandRay = false;
-            bool hasLeftHandRay = false;
-
-            if (_rightHand != null && _rightHand.IsTracked)
+            if (!TryGetIndexTipPosition(isRight, out Vector3 tipPos))
             {
-                Transform pointer = _rightHand.PointerPose != null ? _rightHand.PointerPose : rightHandRayOrigin;
-                if (pointer != null)
-                {
-                    rightHandRay = new Ray(pointer.position, pointer.forward);
-                    hasRightHandRay = true;
-                    bool isPinching = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Index) ||
-                                     _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.65f;
-                    if (isPinching && !_wasPinchingRight) rightPinching = true;
-                    _wasPinchingRight = isPinching;
-                }
-            }
-            if (_leftHand != null && _leftHand.IsTracked)
-            {
-                Transform pointer = _leftHand.PointerPose != null ? _leftHand.PointerPose : leftHandRayOrigin;
-                if (pointer != null)
-                {
-                    leftHandRay = new Ray(pointer.position, pointer.forward);
-                    hasLeftHandRay = true;
-                    bool isPinching = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Index) ||
-                                     _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.65f;
-                    if (isPinching && !_wasPinchingLeft) leftPinching = true;
-                    _wasPinchingLeft = isPinching;
-                }
-            }
-
-            // 2. Evaluate Controllers
-            bool rightControllerTrigger = false;
-            bool leftControllerTrigger = false;
-            Ray rightCtrlRay = default;
-            Ray leftCtrlRay = default;
-            bool hasRightCtrlRay = false;
-            bool hasLeftCtrlRay = false;
-
-            if (rightControllerRayOrigin != null)
-            {
-                rightCtrlRay = new Ray(rightControllerRayOrigin.position, rightControllerRayOrigin.forward);
-                hasRightCtrlRay = true;
-                bool btnDown = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch) ||
-                               OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch);
-                float triggerAxis = OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
-                bool axisDown = triggerAxis > 0.65f && !_wasRightTriggerDown;
-                _wasRightTriggerDown = triggerAxis > 0.65f;
-                rightControllerTrigger = btnDown || axisDown;
-            }
-            if (leftControllerRayOrigin != null)
-            {
-                leftCtrlRay = new Ray(leftControllerRayOrigin.position, leftControllerRayOrigin.forward);
-                hasLeftCtrlRay = true;
-                bool btnDown = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch) ||
-                               OVRInput.GetDown(OVRInput.Button.Three, OVRInput.Controller.LTouch);
-                float triggerAxis = OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.LTouch);
-                bool axisDown = triggerAxis > 0.65f && !_wasLeftTriggerDown;
-                _wasLeftTriggerDown = triggerAxis > 0.65f;
-                leftControllerTrigger = btnDown || axisDown;
-            }
-
-            // Decide active ray: Priority to the actively clicking hand/controller
-            if (rightPinching && hasRightHandRay)
-            {
-                interactionRay = rightHandRay;
-                hasRay = true;
-                triggerPressed = true;
-                activeOrigin = _rightHand.PointerPose != null ? _rightHand.PointerPose : rightHandRayOrigin;
-            }
-            else if (leftPinching && hasLeftHandRay)
-            {
-                interactionRay = leftHandRay;
-                hasRay = true;
-                triggerPressed = true;
-                activeOrigin = _leftHand.PointerPose != null ? _leftHand.PointerPose : leftHandRayOrigin;
-            }
-            else if (rightControllerTrigger && hasRightCtrlRay)
-            {
-                interactionRay = rightCtrlRay;
-                hasRay = true;
-                triggerPressed = true;
-                activeOrigin = rightControllerRayOrigin;
-            }
-            else if (leftControllerTrigger && hasLeftCtrlRay)
-            {
-                interactionRay = leftCtrlRay;
-                hasRay = true;
-                triggerPressed = true;
-                activeOrigin = leftControllerRayOrigin;
-            }
-            else if (hasRightHandRay)
-            {
-                interactionRay = rightHandRay;
-                hasRay = true;
-                activeOrigin = _rightHand.PointerPose != null ? _rightHand.PointerPose : rightHandRayOrigin;
-            }
-            else if (hasLeftHandRay)
-            {
-                interactionRay = leftHandRay;
-                hasRay = true;
-                activeOrigin = _leftHand.PointerPose != null ? _leftHand.PointerPose : leftHandRayOrigin;
-            }
-            else if (hasRightCtrlRay)
-            {
-                interactionRay = rightCtrlRay;
-                hasRay = true;
-                activeOrigin = rightControllerRayOrigin;
-            }
-            else if (hasLeftCtrlRay)
-            {
-                interactionRay = leftCtrlRay;
-                hasRay = true;
-                activeOrigin = leftControllerRayOrigin;
-            }
-
-            // 3. Fallback to Screen / Mouse in Unity Editor
-            if (!hasRay || Application.isEditor)
-            {
-                if (Mouse.current != null)
-                {
-                    if (_mainCamera == null) _mainCamera = Camera.main ?? FindAnyObjectByType<Camera>();
-                    if (_mainCamera != null)
-                    {
-                        Vector2 mousePos = Mouse.current.position.ReadValue();
-                        interactionRay = _mainCamera.ScreenPointToRay(mousePos);
-                        hasRay = true;
-                        activeOrigin = _mainCamera.transform;
-
-                        if (Mouse.current.leftButton.wasPressedThisFrame)
-                        {
-                            triggerPressed = true;
-                        }
-                    }
-                }
-            }
-
-            if (!hasRay)
-            {
-                if (rayVisual != null) rayVisual.enabled = false;
+                GameObject pokeOrb = isRight ? rightPokeOrb : leftPokeOrb;
+                if (pokeOrb != null && pokeOrb.activeSelf) pokeOrb.SetActive(false);
                 return;
             }
 
-            // Perform Raycast
-            int hitCount = Physics.RaycastNonAlloc(interactionRay, _hitBuffer, maxRayDistance, interactableLayer);
+            GameObject orb = isRight ? rightPokeOrb : leftPokeOrb;
+            if (orb != null)
+            {
+                orb.SetActive(true);
+                orb.transform.position = tipPos;
+            }
+
+            float lastPokeTime = isRight ? _lastPokeTimeRight : _lastPokeTimeLeft;
+            if (Time.time - lastPokeTime < 0.22f) return;
+
+            int hitCount = Physics.OverlapSphereNonAlloc(tipPos, 0.024f, _pokeOverlapBuffer, interactableLayer);
+            if (hitCount == 0) return;
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                Collider col = _pokeOverlapBuffer[i];
+                if (col == null) continue;
+
+                // 3D Tile
+                Tile3DView tile = col.GetComponentInParent<Tile3DView>();
+                if (tile != null)
+                {
+                    tile.TriggerClick();
+                    if (isRight) _lastPokeTimeRight = Time.time;
+                    else _lastPokeTimeLeft = Time.time;
+                    TriggerHapticPulse(isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch, 0.45f, 0.12f);
+                    return;
+                }
+
+                // Tactile Keypad Button
+                TactileKeypadButton key = col.GetComponentInParent<TactileKeypadButton>();
+                if (key != null)
+                {
+                    key.TriggerPress();
+                    if (isRight) _lastPokeTimeRight = Time.time;
+                    else _lastPokeTimeLeft = Time.time;
+                    TriggerHapticPulse(isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch, 0.45f, 0.12f);
+                    return;
+                }
+
+                // Spatial UI Canvas Button
+                Button uiBtn = col.GetComponentInParent<Button>();
+                if (uiBtn != null && uiBtn.interactable)
+                {
+                    uiBtn.onClick.Invoke();
+                    if (isRight) _lastPokeTimeRight = Time.time;
+                    else _lastPokeTimeLeft = Time.time;
+                    TriggerHapticPulse(isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch, 0.5f, 0.14f);
+                    return;
+                }
+
+                // Legacy Button & Cell
+                SpatialNumpadButton legBtn = col.GetComponentInParent<SpatialNumpadButton>();
+                if (legBtn != null)
+                {
+                    legBtn.TriggerPress();
+                    if (isRight) _lastPokeTimeRight = Time.time;
+                    else _lastPokeTimeLeft = Time.time;
+                    return;
+                }
+
+                SudokuCellView legCell = col.GetComponentInParent<SudokuCellView>();
+                if (legCell != null)
+                {
+                    legCell.TriggerClick();
+                    if (isRight) _lastPokeTimeRight = Time.time;
+                    else _lastPokeTimeLeft = Time.time;
+                    return;
+                }
+            }
+        }
+
+        private bool TryGetIndexTipPosition(bool isRight, out Vector3 tipPos)
+        {
+            OVRHand hand = isRight ? _rightHand : _leftHand;
+            OVRSkeleton skeleton = isRight ? _rightSkeleton : _leftSkeleton;
+            ref Transform tipBone = ref (isRight ? ref _rightIndexTipBone : ref _leftIndexTipBone);
+            Transform ctrlOrigin = isRight ? rightControllerRayOrigin : leftControllerRayOrigin;
+
+            // 1. Hand tracking with initialized skeleton
+            if (hand != null && hand.IsTracked && skeleton != null && skeleton.IsInitialized)
+            {
+                if (tipBone == null)
+                {
+                    foreach (var bone in skeleton.Bones)
+                    {
+                        if (bone.Id == OVRSkeleton.BoneId.Hand_IndexTip)
+                        {
+                            tipBone = bone.Transform;
+                            break;
+                        }
+                    }
+                }
+
+                if (tipBone != null)
+                {
+                    tipPos = tipBone.position;
+                    return true;
+                }
+            }
+
+            // 2. Hand tracking fallback (pointer pose projected forward)
+            if (hand != null && hand.IsTracked)
+            {
+                Transform pointer = hand.PointerPose != null ? hand.PointerPose : (isRight ? rightHandRayOrigin : leftHandRayOrigin);
+                if (pointer != null)
+                {
+                    tipPos = pointer.position + pointer.forward * 0.04f;
+                    return true;
+                }
+            }
+
+            // 3. Controller fallback tip
+            if (ctrlOrigin != null && OVRInput.IsControllerConnected(isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch))
+            {
+                tipPos = ctrlOrigin.TransformPoint(new Vector3(isRight ? 0.012f : -0.012f, -0.015f, 0.055f));
+                return true;
+            }
+
+            tipPos = Vector3.zero;
+            return false;
+        }
+
+        #endregion
+
+        #region Ray Pointers
+
+        private void ProcessHandPointer(bool isRight)
+        {
+            Ray ray = default;
+            bool hasRay = false;
+            bool triggerClicked = false;
+            Transform originTransform = null;
+
+            OVRHand hand = isRight ? _rightHand : _leftHand;
+            Transform handOrigin = isRight ? rightHandRayOrigin : leftHandRayOrigin;
+            Transform ctrlOrigin = isRight ? rightControllerRayOrigin : leftControllerRayOrigin;
+
+            // Evaluate Hand Tracking
+            if (hand != null && hand.IsTracked)
+            {
+                originTransform = hand.PointerPose != null ? hand.PointerPose : handOrigin;
+                if (originTransform != null)
+                {
+                    ray = new Ray(originTransform.position, originTransform.forward);
+                    hasRay = true;
+
+                    bool isPinching = hand.GetFingerIsPinching(OVRHand.HandFinger.Index) ||
+                                     hand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.60f;
+
+                    if (isRight)
+                    {
+                        if (isPinching && !_wasPinchingRight) triggerClicked = true;
+                        _wasPinchingRight = isPinching;
+                    }
+                    else
+                    {
+                        if (isPinching && !_wasPinchingLeft) triggerClicked = true;
+                        _wasPinchingLeft = isPinching;
+                    }
+                }
+            }
+            // Evaluate Touch Controller
+            else if (ctrlOrigin != null)
+            {
+                originTransform = ctrlOrigin;
+                ray = new Ray(ctrlOrigin.position, ctrlOrigin.forward);
+                hasRay = true;
+
+                OVRInput.Controller ctrl = isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch;
+                OVRInput.Button btnPrimary = isRight ? OVRInput.Button.One : OVRInput.Button.Three;
+
+                bool btnDown = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, ctrl) ||
+                               OVRInput.GetDown(btnPrimary, ctrl);
+                float triggerAxis = OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, ctrl);
+
+                if (isRight)
+                {
+                    bool axisDown = triggerAxis > 0.60f && !_wasRightTriggerDown;
+                    _wasRightTriggerDown = triggerAxis > 0.60f;
+                    triggerClicked = btnDown || axisDown;
+                }
+                else
+                {
+                    bool axisDown = triggerAxis > 0.60f && !_wasLeftTriggerDown;
+                    _wasLeftTriggerDown = triggerAxis > 0.60f;
+                    triggerClicked = btnDown || axisDown;
+                }
+            }
+
+            LineRenderer line = isRight ? rightRayVisual : leftRayVisual;
+            GameObject reticle = isRight ? rightPointerReticle : leftPointerReticle;
+            Material reticleMat = isRight ? _rightReticleMat : _leftReticleMat;
+
+            if (!hasRay)
+            {
+                if (line != null) line.enabled = false;
+                if (reticle != null) reticle.SetActive(false);
+                ClearHovers(isRight);
+                return;
+            }
+
+            // Raycast execution
+            RaycastHit[] hitBuffer = isRight ? _rightHitBuffer : _leftHitBuffer;
+            int hitCount = Physics.RaycastNonAlloc(ray, hitBuffer, maxRayDistance, interactableLayer);
 
             Tile3DView hitTile = null;
             TactileKeypadButton hitKey = null;
@@ -266,7 +376,7 @@ namespace SudokuVR.Interaction
 
             for (int i = 0; i < hitCount; i++)
             {
-                RaycastHit hit = _hitBuffer[i];
+                RaycastHit hit = hitBuffer[i];
                 if (hit.distance < closestDist)
                 {
                     Tile3DView t = hit.collider.GetComponentInParent<Tile3DView>();
@@ -287,170 +397,329 @@ namespace SudokuVR.Interaction
                 }
             }
 
-            // Update Tile Hover
-            if (hitTile != _currentHoveredTile)
-            {
-                _currentHoveredTile?.TriggerUnhover();
-                _currentHoveredTile = hitTile;
-                _currentHoveredTile?.TriggerHover();
-            }
+            // Update Hand Hovers
+            UpdateHandHovers(isRight, hitTile, hitKey, hitUIButton, hitLegacyBtn, hitLegacyCell);
 
-            // Update Key Hover
-            if (hitKey != _currentHoveredKey)
+            // Execute Click
+            if (triggerClicked)
             {
-                _currentHoveredKey?.SetHover(false);
-                _currentHoveredKey = hitKey;
-                _currentHoveredKey?.SetHover(true);
-            }
+                OVRInput.Controller ctrl = isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch;
 
-            // Update UI Button Hover
-            if (hitUIButton != _currentHoveredUIButton)
-            {
-                _currentHoveredUIButton = hitUIButton;
-            }
-
-            // Update Legacy Hovers
-            if (hitLegacyBtn != _currentHoveredLegacyBtn)
-            {
-                _currentHoveredLegacyBtn?.SetHover(false);
-                _currentHoveredLegacyBtn = hitLegacyBtn;
-                _currentHoveredLegacyBtn?.SetHover(true);
-            }
-            if (hitLegacyCell != _currentHoveredLegacyCell)
-            {
-                _currentHoveredLegacyCell?.TriggerUnhover();
-                _currentHoveredLegacyCell = hitLegacyCell;
-                _currentHoveredLegacyCell?.TriggerHover();
-            }
-
-            // Process Trigger Click
-            if (triggerPressed)
-            {
-                if (_currentHoveredTile != null)
+                if (hitTile != null)
                 {
-                    _currentHoveredTile.TriggerClick();
-                    TriggerHapticPulse(0.35f, 0.12f);
+                    hitTile.TriggerClick();
+                    TriggerHapticPulse(ctrl, 0.35f, 0.12f);
                 }
-                else if (_currentHoveredKey != null)
+                else if (hitKey != null)
                 {
-                    _currentHoveredKey.TriggerPress();
+                    hitKey.TriggerPress();
                 }
-                else if (_currentHoveredUIButton != null && _currentHoveredUIButton.interactable)
+                else if (hitUIButton != null && hitUIButton.interactable)
                 {
-                    _currentHoveredUIButton.onClick.Invoke();
-                    TriggerHapticPulse(0.5f, 0.15f);
+                    hitUIButton.onClick.Invoke();
+                    TriggerHapticPulse(ctrl, 0.5f, 0.15f);
                 }
-                else if (_currentHoveredLegacyBtn != null)
+                else if (hitLegacyBtn != null)
                 {
-                    _currentHoveredLegacyBtn.TriggerPress();
+                    hitLegacyBtn.TriggerPress();
                 }
-                else if (_currentHoveredLegacyCell != null)
+                else if (hitLegacyCell != null)
                 {
-                    _currentHoveredLegacyCell.TriggerClick();
+                    hitLegacyCell.TriggerClick();
                 }
             }
 
-            // Update Laser Visual
-            UpdateLaserVisual(interactionRay, closestDist, activeOrigin, hitTile != null || hitKey != null || hitUIButton != null, triggerPressed);
+            // Update Laser Visuals & Reticle
+            bool hasHover = (hitTile != null || hitKey != null || hitUIButton != null || hitLegacyBtn != null || hitLegacyCell != null);
+            UpdatePointerVisuals(line, reticle, reticleMat, ray, closestDist, hasHover, triggerClicked);
         }
 
-        private void UpdateLaserVisual(Ray ray, float hitDist, Transform origin, bool hasHover, bool isClicking)
+        private void UpdateHandHovers(bool isRight, Tile3DView tile, TactileKeypadButton key, Button uiBtn, SpatialNumpadButton legBtn, SudokuCellView legCell)
         {
-            if (rayVisual == null) return;
-
-            // Don't show ray in head-cam fallback unless clicking/hovering
-            if (origin == _mainCamera?.transform && !hasHover)
+            if (isRight)
             {
-                rayVisual.enabled = false;
-                if (pointerReticle != null) pointerReticle.SetActive(false);
-                return;
+                if (tile != _rightHoveredTile)
+                {
+                    _rightHoveredTile?.TriggerUnhover();
+                    _rightHoveredTile = tile;
+                    _rightHoveredTile?.TriggerHover();
+                }
+                if (key != _rightHoveredKey)
+                {
+                    _rightHoveredKey?.SetHover(false);
+                    _rightHoveredKey = key;
+                    _rightHoveredKey?.SetHover(true);
+                }
+                _rightHoveredUIButton = uiBtn;
+                if (legBtn != _rightHoveredLegacyBtn)
+                {
+                    _rightHoveredLegacyBtn?.SetHover(false);
+                    _rightHoveredLegacyBtn = legBtn;
+                    _rightHoveredLegacyBtn?.SetHover(true);
+                }
+                if (legCell != _rightHoveredLegacyCell)
+                {
+                    _rightHoveredLegacyCell?.TriggerUnhover();
+                    _rightHoveredLegacyCell = legCell;
+                    _rightHoveredLegacyCell?.TriggerHover();
+                }
             }
+            else
+            {
+                if (tile != _leftHoveredTile)
+                {
+                    _leftHoveredTile?.TriggerUnhover();
+                    _leftHoveredTile = tile;
+                    _leftHoveredTile?.TriggerHover();
+                }
+                if (key != _leftHoveredKey)
+                {
+                    _leftHoveredKey?.SetHover(false);
+                    _leftHoveredKey = key;
+                    _leftHoveredKey?.SetHover(true);
+                }
+                _leftHoveredUIButton = uiBtn;
+                if (legBtn != _leftHoveredLegacyBtn)
+                {
+                    _leftHoveredLegacyBtn?.SetHover(false);
+                    _leftHoveredLegacyBtn = legBtn;
+                    _leftHoveredLegacyBtn?.SetHover(true);
+                }
+                if (legCell != _leftHoveredLegacyCell)
+                {
+                    _leftHoveredLegacyCell?.TriggerUnhover();
+                    _leftHoveredLegacyCell = legCell;
+                    _leftHoveredLegacyCell?.TriggerHover();
+                }
+            }
+        }
 
-            rayVisual.enabled = true;
-            rayVisual.SetPosition(0, ray.origin);
+        private void ClearHovers(bool isRight)
+        {
+            if (isRight)
+            {
+                _rightHoveredTile?.TriggerUnhover();
+                _rightHoveredTile = null;
+                _rightHoveredKey?.SetHover(false);
+                _rightHoveredKey = null;
+                _rightHoveredUIButton = null;
+                _rightHoveredLegacyBtn?.SetHover(false);
+                _rightHoveredLegacyBtn = null;
+                _rightHoveredLegacyCell?.TriggerUnhover();
+                _rightHoveredLegacyCell = null;
+            }
+            else
+            {
+                _leftHoveredTile?.TriggerUnhover();
+                _leftHoveredTile = null;
+                _leftHoveredKey?.SetHover(false);
+                _leftHoveredKey = null;
+                _leftHoveredUIButton = null;
+                _leftHoveredLegacyBtn?.SetHover(false);
+                _leftHoveredLegacyBtn = null;
+                _leftHoveredLegacyCell?.TriggerUnhover();
+                _leftHoveredLegacyCell = null;
+            }
+        }
+
+        private void UpdatePointerVisuals(LineRenderer line, GameObject reticle, Material reticleMat, Ray ray, float hitDist, bool hasHover, bool isClicking)
+        {
+            if (line == null) return;
+
+            line.enabled = true;
+            line.SetPosition(0, ray.origin);
 
             float length = (hitDist < float.MaxValue) ? hitDist : 2.5f;
             Vector3 end = ray.origin + ray.direction * length;
-            rayVisual.SetPosition(1, end);
+            line.SetPosition(1, end);
 
             Color color = isClicking ? rayClickColor : (hasHover ? rayHoverColor : rayNormalColor);
-            rayVisual.startColor = color;
-            rayVisual.endColor = new Color(color.r, color.g, color.b, 0.05f);
+            line.startColor = color;
+            line.endColor = new Color(color.r, color.g, color.b, 0.05f);
 
-            // Update Round Pointer Reticle
-            if (pointerReticle != null)
+            // Update Round Reticle
+            if (reticle != null)
             {
-                pointerReticle.SetActive(true);
-                // Offset slightly towards the origin so it doesn't z-fight with surfaces
-                pointerReticle.transform.position = end - ray.direction * 0.003f;
-                pointerReticle.transform.rotation = Quaternion.LookRotation(ray.direction);
+                reticle.SetActive(true);
+                reticle.transform.position = end - ray.direction * 0.003f;
+                reticle.transform.rotation = Quaternion.LookRotation(ray.direction);
 
                 float scaleMultiplier = isClicking ? 0.75f : (hasHover ? 1.4f : 1.0f);
-                pointerReticle.transform.localScale = Vector3.one * (0.018f * scaleMultiplier);
+                reticle.transform.localScale = Vector3.one * (0.018f * scaleMultiplier);
 
-                if (_reticleMaterial != null)
+                if (reticleMat != null)
                 {
-                    _reticleMaterial.color = color;
+                    reticleMat.color = color;
                 }
             }
         }
 
-        private void TriggerHapticPulse(float amplitude, float duration)
+        #endregion
+
+        #region Editor Fallback
+
+        private void ProcessEditorMouseFallback()
         {
-            try
+            // If VR hands/controllers are actively pointing, let them drive
+            if ((_rightHand != null && _rightHand.IsTracked) || (_leftHand != null && _leftHand.IsTracked)) return;
+
+            if (Mouse.current != null)
             {
-                OVRInput.SetControllerVibration(amplitude, duration, OVRInput.Controller.RTouch);
-                OVRInput.SetControllerVibration(amplitude, duration, OVRInput.Controller.LTouch);
-            }
-            catch
-            {
-                // Fallback in Editor
+                if (_mainCamera == null) _mainCamera = Camera.main ?? FindAnyObjectByType<Camera>();
+                if (_mainCamera != null)
+                {
+                    Vector2 mousePos = Mouse.current.position.ReadValue();
+                    Ray ray = _mainCamera.ScreenPointToRay(mousePos);
+
+                    int hitCount = Physics.RaycastNonAlloc(ray, _rightHitBuffer, maxRayDistance, interactableLayer);
+                    Tile3DView hitTile = null;
+                    TactileKeypadButton hitKey = null;
+                    Button hitUIButton = null;
+
+                    for (int i = 0; i < hitCount; i++)
+                    {
+                        var hit = _rightHitBuffer[i];
+                        var t = hit.collider.GetComponentInParent<Tile3DView>();
+                        var k = hit.collider.GetComponentInParent<TactileKeypadButton>();
+                        var u = hit.collider.GetComponentInParent<Button>();
+                        if (t != null) hitTile = t;
+                        if (k != null) hitKey = k;
+                        if (u != null) hitUIButton = u;
+                    }
+
+                    if (hitTile != _rightHoveredTile)
+                    {
+                        _rightHoveredTile?.TriggerUnhover();
+                        _rightHoveredTile = hitTile;
+                        _rightHoveredTile?.TriggerHover();
+                    }
+                    if (hitKey != _rightHoveredKey)
+                    {
+                        _rightHoveredKey?.SetHover(false);
+                        _rightHoveredKey = hitKey;
+                        _rightHoveredKey?.SetHover(true);
+                    }
+                    _rightHoveredUIButton = hitUIButton;
+
+                    if (Mouse.current.leftButton.wasPressedThisFrame)
+                    {
+                        if (hitTile != null) hitTile.TriggerClick();
+                        else if (hitKey != null) hitKey.TriggerPress();
+                        else if (hitUIButton != null && hitUIButton.interactable) hitUIButton.onClick.Invoke();
+                    }
+                }
             }
         }
 
-        private void EnsureLaserVisual()
+        #endregion
+
+        private void TriggerHapticPulse(OVRInput.Controller ctrl, float amplitude, float duration)
         {
-            if (rayVisual == null)
+            try
             {
-                GameObject laserObj = new GameObject("VR_LaserPointer");
+                OVRInput.SetControllerVibration(amplitude, duration, ctrl);
+            }
+            catch
+            {
+                // Ignored in editor
+            }
+        }
+
+        private void EnsureLaserVisuals()
+        {
+            // Right Pointer
+            if (rightRayVisual == null)
+            {
+                GameObject laserObj = new GameObject("VR_LaserPointer_Right");
                 laserObj.transform.SetParent(transform, false);
-
-                rayVisual = laserObj.AddComponent<LineRenderer>();
-                rayVisual.useWorldSpace = true;
-                rayVisual.positionCount = 2;
-                rayVisual.startWidth = 0.005f;
-                rayVisual.endWidth = 0.002f;
-
-                Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default"));
-                mat.color = rayNormalColor;
-                rayVisual.material = mat;
-                rayVisual.enabled = false;
+                rightRayVisual = CreateLineRenderer(laserObj);
             }
 
-            if (pointerReticle == null)
+            if (rightPointerReticle == null)
             {
-                pointerReticle = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-                pointerReticle.name = "VR_PointerReticle";
-                pointerReticle.transform.SetParent(transform, false);
-                pointerReticle.transform.localScale = Vector3.one * 0.018f;
-
-                // Eliminate collider so reticle never blocks raycasts
-                var col = pointerReticle.GetComponent<Collider>();
-                if (col != null) Destroy(col);
-
-                Shader s = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
-                _reticleMaterial = new Material(s);
-                _reticleMaterial.color = rayNormalColor;
-                var mr = pointerReticle.GetComponent<MeshRenderer>();
-                if (mr != null) mr.sharedMaterial = _reticleMaterial;
-
-                pointerReticle.SetActive(false);
+                rightPointerReticle = CreateReticleObject("VR_PointerReticle_Right", out _rightReticleMat);
             }
-            else if (_reticleMaterial == null)
+
+            // Left Pointer
+            if (leftRayVisual == null)
             {
-                var mr = pointerReticle.GetComponent<MeshRenderer>();
-                if (mr != null) _reticleMaterial = mr.sharedMaterial;
+                GameObject laserObj = new GameObject("VR_LaserPointer_Left");
+                laserObj.transform.SetParent(transform, false);
+                leftRayVisual = CreateLineRenderer(laserObj);
             }
+
+            if (leftPointerReticle == null)
+            {
+                leftPointerReticle = CreateReticleObject("VR_PointerReticle_Left", out _leftReticleMat);
+            }
+        }
+
+        private void EnsurePokeOrbVisuals()
+        {
+            if (rightPokeOrb == null)
+            {
+                rightPokeOrb = CreatePokeOrb("VR_PokeOrb_Right");
+            }
+            if (leftPokeOrb == null)
+            {
+                leftPokeOrb = CreatePokeOrb("VR_PokeOrb_Left");
+            }
+        }
+
+        private LineRenderer CreateLineRenderer(GameObject go)
+        {
+            LineRenderer lr = go.AddComponent<LineRenderer>();
+            lr.useWorldSpace = true;
+            lr.positionCount = 2;
+            lr.startWidth = 0.005f;
+            lr.endWidth = 0.002f;
+
+            Shader s = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+            Material mat = new Material(s);
+            mat.color = rayNormalColor;
+            lr.material = mat;
+            lr.enabled = false;
+            return lr;
+        }
+
+        private GameObject CreateReticleObject(string name, out Material reticleMat)
+        {
+            GameObject reticle = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            reticle.name = name;
+            reticle.transform.SetParent(transform, false);
+            reticle.transform.localScale = Vector3.one * 0.018f;
+
+            var col = reticle.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+
+            Shader s = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+            reticleMat = new Material(s);
+            reticleMat.color = rayNormalColor;
+            var mr = reticle.GetComponent<MeshRenderer>();
+            if (mr != null) mr.sharedMaterial = reticleMat;
+
+            reticle.SetActive(false);
+            return reticle;
+        }
+
+        private GameObject CreatePokeOrb(string name)
+        {
+            GameObject orb = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            orb.name = name;
+            orb.transform.SetParent(transform, false);
+            orb.transform.localScale = Vector3.one * 0.014f;
+
+            var col = orb.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+
+            Shader s = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+            Material mat = new Material(s);
+            mat.color = new Color(0f, 0.85f, 1f, 0.6f);
+            var mr = orb.GetComponent<MeshRenderer>();
+            if (mr != null) mr.sharedMaterial = mat;
+
+            orb.SetActive(false);
+            return orb;
         }
     }
 }
