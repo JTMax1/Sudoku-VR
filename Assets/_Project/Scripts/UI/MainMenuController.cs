@@ -38,6 +38,7 @@ namespace SudokuVR.UI
 
         [Header("Hero Triggers")]
         [SerializeField] private Button playHeroButton;
+        [SerializeField] private Button continueHeroButton;
         [SerializeField] private Button dailyChallengeButton;
         [SerializeField] private Button battleHeroButton;
 
@@ -66,6 +67,7 @@ namespace SudokuVR.UI
         private void RegisterButtonCallbacks()
         {
             if (playHeroButton != null) playHeroButton.onClick.AddListener(ShowDifficultyModal);
+            if (continueHeroButton != null) continueHeroButton.onClick.AddListener(ContinueActiveGame);
             if (dailyChallengeButton != null) dailyChallengeButton.onClick.AddListener(() => StartGameWithDifficulty(Difficulty.Medium));
             if (battleHeroButton != null) battleHeroButton.onClick.AddListener(ShowBattleLobby);
 
@@ -103,6 +105,35 @@ namespace SudokuVR.UI
             SetActivePanel(hubHomePanel);
             if (inGameRoot != null) inGameRoot.SetActive(false);
             UpdateStatsRibbon();
+
+            SudokuGameManager gm = SudokuGameManager.Instance ?? FindAnyObjectByType<SudokuGameManager>();
+            bool hasActive = gm != null && gm.HasActiveGame;
+            if (continueHeroButton != null)
+            {
+                continueHeroButton.gameObject.SetActive(hasActive);
+            }
+        }
+
+        public void ContinueActiveGame()
+        {
+            _currentScreen = NavigationScreen.InGamePuzzle;
+            SetActivePanel(null); // Hide hub panels
+
+            if (inGameRoot != null)
+            {
+                inGameRoot.SetActive(true);
+            }
+
+            SudokuGameManager gm = SudokuGameManager.Instance ?? FindAnyObjectByType<SudokuGameManager>();
+            if (gm != null)
+            {
+                gm.ResumeGame();
+                SpatialHUDView hud = FindAnyObjectByType<SpatialHUDView>();
+                hud?.UpdateDifficultyBadge(gm.CurrentDifficulty);
+            }
+
+            SpatialBoardAnchor anchor = FindAnyObjectByType<SpatialBoardAnchor>();
+            anchor?.RecenterToPlayerGaze();
         }
 
         public void ShowDifficultyModal()

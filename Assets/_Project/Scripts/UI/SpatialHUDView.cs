@@ -4,12 +4,14 @@ using UnityEngine;
 using UnityEngine.UI;
 using SudokuVR.Core;
 using SudokuVR.Gameplay;
+using SudokuVR.Interaction;
 
 namespace SudokuVR.UI
 {
     /// <summary>
-    /// Floating curved in-game spatial HUD arc and game over modal.
+    /// Floating curved in-game spatial HUD arc, pause dialog, and game over modal.
     /// Displays score counter, active timer, mistake counter (X/3), difficulty, and smart hint messages.
+    /// Provides one-tap Pause, Mixed Reality Passthrough toggle, and Instant Board Recentering.
     /// </summary>
     public class SpatialHUDView : MonoBehaviour
     {
@@ -20,6 +22,17 @@ namespace SudokuVR.UI
         [SerializeField] private TMP_Text mistakesText;
         [SerializeField] private TMP_Text hintNotificationText;
 
+        [Header("HUD Action Buttons")]
+        [SerializeField] private Button pauseButton;
+        [SerializeField] private Button passthroughButton;
+        [SerializeField] private Button recenterButton;
+
+        [Header("Pause Modal Panel")]
+        [SerializeField] private GameObject pausePanel;
+        [SerializeField] private Button resumeButton;
+        [SerializeField] private Button restartButton;
+        [SerializeField] private Button pauseHomeButton;
+
         [Header("Game Over / Victory Dialog Panel")]
         [SerializeField] private GameObject endScreenPanel;
         [SerializeField] private TMP_Text endTitleText;
@@ -29,16 +42,19 @@ namespace SudokuVR.UI
         [SerializeField] private Button returnHomeButton;
 
         private SudokuGameManager _gameManager;
+        private SpatialBoardAnchor _boardAnchor;
 
         private void Start()
         {
             _gameManager = SudokuGameManager.Instance ?? FindAnyObjectByType<SudokuGameManager>();
+            _boardAnchor = FindAnyObjectByType<SpatialBoardAnchor>();
 
             if (_gameManager != null)
             {
                 _gameManager.OnMistakesUpdated += HandleMistakesUpdated;
                 _gameManager.OnGameFinished += HandleGameFinished;
                 _gameManager.OnHintReceived += HandleHintReceived;
+                _gameManager.OnPauseStateChanged += HandlePauseStateChanged;
 
                 if (_gameManager.ScoreEngine != null)
                 {
@@ -54,14 +70,23 @@ namespace SudokuVR.UI
                 UpdateMistakesDisplay(_gameManager.MistakeCount, _gameManager.MaxMistakes);
             }
 
+            // HUD Action Buttons
+            if (pauseButton != null) pauseButton.onClick.AddListener(OnPauseClicked);
+            if (passthroughButton != null) passthroughButton.onClick.AddListener(OnPassthroughClicked);
+            if (recenterButton != null) recenterButton.onClick.AddListener(OnRecenterClicked);
+
+            // Pause Modal Buttons
+            if (resumeButton != null) resumeButton.onClick.AddListener(OnResumeClicked);
+            if (restartButton != null) restartButton.onClick.AddListener(OnRestartClicked);
+            if (pauseHomeButton != null) pauseHomeButton.onClick.AddListener(OnReturnHomeClicked);
+
+            // End Screen Buttons
             if (playAgainButton != null) playAgainButton.onClick.AddListener(OnPlayAgainClicked);
             if (reviveButton != null) reviveButton.onClick.AddListener(OnReviveClicked);
             if (returnHomeButton != null) returnHomeButton.onClick.AddListener(OnReturnHomeClicked);
 
-            if (endScreenPanel != null)
-            {
-                endScreenPanel.SetActive(false);
-            }
+            if (pausePanel != null) pausePanel.SetActive(false);
+            if (endScreenPanel != null) endScreenPanel.SetActive(false);
 
             if (hintNotificationText != null)
             {
@@ -76,6 +101,7 @@ namespace SudokuVR.UI
                 _gameManager.OnMistakesUpdated -= HandleMistakesUpdated;
                 _gameManager.OnGameFinished -= HandleGameFinished;
                 _gameManager.OnHintReceived -= HandleHintReceived;
+                _gameManager.OnPauseStateChanged -= HandlePauseStateChanged;
 
                 if (_gameManager.ScoreEngine != null)
                 {
@@ -145,6 +171,42 @@ namespace SudokuVR.UI
             }
         }
 
+        private void HandlePauseStateChanged(bool isPaused)
+        {
+            if (pausePanel != null)
+            {
+                pausePanel.SetActive(isPaused);
+            }
+        }
+
+        private void OnPauseClicked()
+        {
+            _gameManager?.TogglePause();
+        }
+
+        private void OnResumeClicked()
+        {
+            _gameManager?.ResumeGame();
+        }
+
+        private void OnRestartClicked()
+        {
+            if (pausePanel != null) pausePanel.SetActive(false);
+            _gameManager?.RestartCurrentGame();
+        }
+
+        private void OnPassthroughClicked()
+        {
+            if (_boardAnchor == null) _boardAnchor = FindAnyObjectByType<SpatialBoardAnchor>();
+            _boardAnchor?.TogglePassthrough();
+        }
+
+        private void OnRecenterClicked()
+        {
+            if (_boardAnchor == null) _boardAnchor = FindAnyObjectByType<SpatialBoardAnchor>();
+            _boardAnchor?.RecenterToPlayerGaze();
+        }
+
         private void HandleGameFinished(bool victory)
         {
             if (endScreenPanel != null)
@@ -197,7 +259,11 @@ namespace SudokuVR.UI
 
         private void OnReturnHomeClicked()
         {
+            if (pausePanel != null) pausePanel.SetActive(false);
             if (endScreenPanel != null) endScreenPanel.SetActive(false);
+
+            _gameManager?.PauseGame();
+
             MainMenuController home = FindAnyObjectByType<MainMenuController>();
             if (home != null)
             {

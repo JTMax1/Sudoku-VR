@@ -64,6 +64,8 @@ namespace SudokuVR.Interaction
         public event Action<int, int> OnTileHovered;
         public event Action<int, int> OnTileUnhovered;
 
+        private float _lastPokeTime;
+
         private void Awake()
         {
             _propBlock = new MaterialPropertyBlock();
@@ -76,6 +78,11 @@ namespace SudokuVR.Interaction
             if (interactionCollider == null)
             {
                 interactionCollider = GetComponent<BoxCollider>();
+            }
+
+            if (mainDigitText == null)
+            {
+                mainDigitText = transform.Find("Text")?.GetComponent<TMP_Text>();
             }
 
             EnsurePencilGridInitialized();
@@ -258,6 +265,19 @@ namespace SudokuVR.Interaction
             OnTileUnhovered?.Invoke(_row, _col);
         }
 
+        public void SetMainDigitText(TMP_Text textComponent)
+        {
+            mainDigitText = textComponent;
+        }
+
+        private void OnTriggerEnter(Collider other)
+        {
+            // Direct index finger poke or controller tip poke
+            if (Time.time - _lastPokeTime < 0.25f) return;
+            _lastPokeTime = Time.time;
+            TriggerClick();
+        }
+
         private void EnsurePencilGridInitialized()
         {
             if (pencilGridRoot == null)
@@ -273,8 +293,9 @@ namespace SudokuVR.Interaction
             {
                 pencilGridRoot = new GameObject("PencilGrid");
                 pencilGridRoot.transform.SetParent(transform, false);
-                pencilGridRoot.transform.localPosition = new Vector3(0f, 0.51f, 0f);
-                pencilGridRoot.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                // Position on front face of the vertical tile
+                pencilGridRoot.transform.localPosition = new Vector3(0f, 0f, -0.52f);
+                pencilGridRoot.transform.localRotation = Quaternion.identity;
                 pencilGridRoot.transform.localScale = Vector3.one;
 
                 float step = 0.28f;

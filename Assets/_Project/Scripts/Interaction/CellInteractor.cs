@@ -103,71 +103,116 @@ namespace SudokuVR.Interaction
             bool triggerPressed = false;
             Transform activeOrigin = null;
 
-            // 1. Check Hand Tracking Pinch & Pointer
+            // 1. Evaluate Hand Tracking Pinch states
+            bool rightPinching = false;
+            bool leftPinching = false;
+            Ray rightHandRay = default;
+            Ray leftHandRay = default;
+            bool hasRightHandRay = false;
+            bool hasLeftHandRay = false;
+
             if (_rightHand != null && _rightHand.IsTracked)
             {
                 Transform pointer = _rightHand.PointerPose != null ? _rightHand.PointerPose : rightHandRayOrigin;
                 if (pointer != null)
                 {
-                    interactionRay = new Ray(pointer.position, pointer.forward);
-                    hasRay = true;
-                    activeOrigin = pointer;
-
+                    rightHandRay = new Ray(pointer.position, pointer.forward);
+                    hasRightHandRay = true;
                     bool isPinching = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Index);
-                    if (isPinching && !_wasPinchingRight)
-                    {
-                        triggerPressed = true;
-                    }
+                    if (isPinching && !_wasPinchingRight) rightPinching = true;
                     _wasPinchingRight = isPinching;
                 }
             }
-            else if (_leftHand != null && _leftHand.IsTracked)
+            if (_leftHand != null && _leftHand.IsTracked)
             {
                 Transform pointer = _leftHand.PointerPose != null ? _leftHand.PointerPose : leftHandRayOrigin;
                 if (pointer != null)
                 {
-                    interactionRay = new Ray(pointer.position, pointer.forward);
-                    hasRay = true;
-                    activeOrigin = pointer;
-
+                    leftHandRay = new Ray(pointer.position, pointer.forward);
+                    hasLeftHandRay = true;
                     bool isPinching = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Index);
-                    if (isPinching && !_wasPinchingLeft)
-                    {
-                        triggerPressed = true;
-                    }
+                    if (isPinching && !_wasPinchingLeft) leftPinching = true;
                     _wasPinchingLeft = isPinching;
                 }
             }
 
-            // 2. Check Meta Quest Touch Controller
-            if (!hasRay)
+            // 2. Evaluate Controllers
+            bool rightControllerTrigger = false;
+            bool leftControllerTrigger = false;
+            Ray rightCtrlRay = default;
+            Ray leftCtrlRay = default;
+            bool hasRightCtrlRay = false;
+            bool hasLeftCtrlRay = false;
+
+            if (rightControllerRayOrigin != null)
             {
-                if (rightControllerRayOrigin != null)
-                {
-                    interactionRay = new Ray(rightControllerRayOrigin.position, rightControllerRayOrigin.forward);
-                    hasRay = true;
-                    activeOrigin = rightControllerRayOrigin;
+                rightCtrlRay = new Ray(rightControllerRayOrigin.position, rightControllerRayOrigin.forward);
+                hasRightCtrlRay = true;
+                rightControllerTrigger = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch) ||
+                                         OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch) ||
+                                         OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.RTouch) > 0.65f;
+            }
+            if (leftControllerRayOrigin != null)
+            {
+                leftCtrlRay = new Ray(leftControllerRayOrigin.position, leftControllerRayOrigin.forward);
+                hasLeftCtrlRay = true;
+                leftControllerTrigger = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch) ||
+                                        OVRInput.GetDown(OVRInput.Button.Three, OVRInput.Controller.LTouch) ||
+                                        OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.LTouch) > 0.65f;
+            }
 
-                    // Trigger detection: index trigger click or Button One (A button)
-                    if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch) ||
-                        OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch) ||
-                        OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.RTouch) > 0.65f)
-                    {
-                        triggerPressed = true;
-                    }
-                }
-                else if (leftControllerRayOrigin != null)
-                {
-                    interactionRay = new Ray(leftControllerRayOrigin.position, leftControllerRayOrigin.forward);
-                    hasRay = true;
-                    activeOrigin = leftControllerRayOrigin;
-
-                    if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch) ||
-                        OVRInput.GetDown(OVRInput.Button.Three, OVRInput.Controller.LTouch))
-                    {
-                        triggerPressed = true;
-                    }
-                }
+            // Decide active ray: Priority to the actively clicking hand/controller
+            if (rightPinching && hasRightHandRay)
+            {
+                interactionRay = rightHandRay;
+                hasRay = true;
+                triggerPressed = true;
+                activeOrigin = _rightHand.PointerPose != null ? _rightHand.PointerPose : rightHandRayOrigin;
+            }
+            else if (leftPinching && hasLeftHandRay)
+            {
+                interactionRay = leftHandRay;
+                hasRay = true;
+                triggerPressed = true;
+                activeOrigin = _leftHand.PointerPose != null ? _leftHand.PointerPose : leftHandRayOrigin;
+            }
+            else if (rightControllerTrigger && hasRightCtrlRay)
+            {
+                interactionRay = rightCtrlRay;
+                hasRay = true;
+                triggerPressed = true;
+                activeOrigin = rightControllerRayOrigin;
+            }
+            else if (leftControllerTrigger && hasLeftCtrlRay)
+            {
+                interactionRay = leftCtrlRay;
+                hasRay = true;
+                triggerPressed = true;
+                activeOrigin = leftControllerRayOrigin;
+            }
+            else if (hasRightHandRay)
+            {
+                interactionRay = rightHandRay;
+                hasRay = true;
+                activeOrigin = _rightHand.PointerPose != null ? _rightHand.PointerPose : rightHandRayOrigin;
+            }
+            else if (hasLeftHandRay)
+            {
+                interactionRay = leftHandRay;
+                hasRay = true;
+                activeOrigin = _leftHand.PointerPose != null ? _leftHand.PointerPose : leftHandRayOrigin;
+            }
+            else if (hasRightCtrlRay)
+            {
+                interactionRay = rightCtrlRay;
+                hasRay = true;
+                activeOrigin = rightControllerRayOrigin;
+            }
+            else if (hasLeftCtrlRay)
+            {
+                interactionRay = leftCtrlRay;
+                hasRay = true;
+                activeOrigin = leftControllerRayOrigin;
             }
 
             // 3. Fallback to Screen / Mouse in Unity Editor

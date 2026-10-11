@@ -42,7 +42,43 @@ namespace SudokuVR.Gameplay
         {
             if (row < 0 || row >= SudokuData.BoardSize || col < 0 || col >= SudokuData.BoardSize)
                 return null;
+
+            if (_tiles[row, col] == null)
+            {
+                Transform child = transform.Find($"Tile_{row}_{col}");
+                if (child != null) _tiles[row, col] = child.GetComponent<Tile3DView>();
+            }
+
             return _tiles[row, col];
+        }
+
+        public void EnsureTilesPopulated()
+        {
+            for (int r = 0; r < SudokuData.BoardSize; r++)
+            {
+                for (int c = 0; c < SudokuData.BoardSize; c++)
+                {
+                    if (_tiles[r, c] == null)
+                    {
+                        Transform child = transform.Find($"Tile_{r}_{c}");
+                        if (child != null)
+                        {
+                            Tile3DView tile = child.GetComponent<Tile3DView>();
+                            _tiles[r, c] = tile;
+                            if (tile != null)
+                            {
+                                tile.OnTileClicked -= HandleTileClicked;
+                                tile.OnTileClicked += HandleTileClicked;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private void Awake()
+        {
+            EnsureTilesPopulated();
         }
 
         /// <summary>
@@ -57,11 +93,13 @@ namespace SudokuVR.Gameplay
             for (int r = 0; r < SudokuData.BoardSize; r++)
             {
                 int blockR = r / SudokuData.BlockSize;
-                float zPos = halfSpan - (r * pitch + blockR * blockSpacing);
+                // Vertical TV: Row 0 on Top (+Y), Row 8 on Bottom (-Y)
+                float yPos = halfSpan - (r * pitch + blockR * blockSpacing);
 
                 for (int c = 0; c < SudokuData.BoardSize; c++)
                 {
                     int blockC = c / SudokuData.BlockSize;
+                    // Vertical TV: Col 0 on Left (-X), Col 8 on Right (+X)
                     float xPos = -halfSpan + (c * pitch + blockC * blockSpacing);
 
                     Tile3DView tile = _tiles[r, c];
@@ -88,23 +126,44 @@ namespace SudokuVR.Gameplay
                         _tiles[r, c] = tile;
                     }
 
-                    tile.transform.localPosition = new Vector3(xPos, 0.006f, zPos);
+                    // Vertical TV layout: tile front face faces -Z towards player
+                    tile.transform.localPosition = new Vector3(xPos, yPos, -0.008f);
                     tile.transform.localRotation = Quaternion.identity;
-                    tile.transform.localScale = new Vector3(cellSize, 0.014f, cellSize);
+                    tile.transform.localScale = new Vector3(cellSize, cellSize, 0.014f);
                     tile.Setup(r, c);
+
+                    // Re-align main digit text on front face
+                    Transform textObj = tile.transform.Find("Text");
+                    if (textObj != null)
+                    {
+                        textObj.localPosition = new Vector3(0f, 0f, -0.52f);
+                        textObj.localRotation = Quaternion.identity;
+                        textObj.localScale = new Vector3(0.09f, 0.09f, 0.09f);
+                        TMP_Text tmp = textObj.GetComponent<TMP_Text>();
+                        tile.SetMainDigitText(tmp);
+                    }
+
+                    // Re-align pencil notes grid on front face
+                    Transform pencilGrid = tile.transform.Find("PencilGrid");
+                    if (pencilGrid != null)
+                    {
+                        pencilGrid.localPosition = new Vector3(0f, 0f, -0.52f);
+                        pencilGrid.localRotation = Quaternion.identity;
+                    }
 
                     tile.OnTileClicked -= HandleTileClicked;
                     tile.OnTileClicked += HandleTileClicked;
                 }
             }
 
-            // Monolith backplate
+            // Monolith backplate (stands vertical in X-Y plane behind tiles)
             if (boardBackplate != null)
             {
                 float plateMargin = 0.035f;
                 float plateWidth = totalSpan + cellSize + plateMargin;
-                boardBackplate.localScale = new Vector3(plateWidth, 0.015f, plateWidth);
-                boardBackplate.localPosition = new Vector3(0f, -0.008f, 0f);
+                boardBackplate.localScale = new Vector3(plateWidth, plateWidth, 0.016f);
+                boardBackplate.localPosition = new Vector3(0f, 0f, 0.008f);
+                boardBackplate.localRotation = Quaternion.identity;
             }
         }
 
@@ -132,6 +191,7 @@ namespace SudokuVR.Gameplay
         public void RefreshAllCells(SudokuBoardState state)
         {
             if (state == null || !state.IsInitialized) return;
+            EnsureTilesPopulated();
 
             for (int r = 0; r < SudokuData.BoardSize; r++)
             {
@@ -320,11 +380,11 @@ namespace SudokuVR.Gameplay
 
             Tile3DView view = cellObj.AddComponent<Tile3DView>();
 
-            // Main 3D Text
+            // Main 3D Text on front face facing player
             GameObject textObj = new GameObject("Text");
             textObj.transform.SetParent(cellObj.transform, false);
-            textObj.transform.localPosition = new Vector3(0f, 0.51f, 0f);
-            textObj.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            textObj.transform.localPosition = new Vector3(0f, 0f, -0.52f);
+            textObj.transform.localRotation = Quaternion.identity;
             textObj.transform.localScale = new Vector3(0.09f, 0.09f, 0.09f);
 
             TextMeshPro tmp = textObj.AddComponent<TextMeshPro>();
@@ -333,6 +393,7 @@ namespace SudokuVR.Gameplay
             tmp.text = "";
             tmp.color = Color.white;
 
+            view.SetMainDigitText(tmp);
             return view;
         }
     }

@@ -23,7 +23,6 @@ namespace SudokuVR.Interaction
         [Header("Ergonomics & Layout")]
         [SerializeField] private float buttonSize = 0.046f;
         [SerializeField] private float spacing = 0.007f;
-        [SerializeField] private float arcCurvature = 0.03f; // Slight curve for ergonomic reach
 
         public event Action<int> OnNumberSelected;
         public event Action OnEraseRequested;
@@ -136,47 +135,95 @@ namespace SudokuVR.Interaction
         {
             float pitch = buttonSize + spacing;
 
+            // Optional Acrylic Backplate for keypad
+            Transform backplate = transform.Find("Keypad_Backplate");
+            if (backplate == null)
+            {
+                GameObject bpObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                bpObj.name = "Keypad_Backplate";
+                bpObj.transform.SetParent(transform, false);
+                var col = bpObj.GetComponent<Collider>();
+                if (col != null) DestroyImmediate(col);
+                backplate = bpObj.transform;
+            }
+            backplate.localPosition = new Vector3(0f, 0.012f, 0.008f);
+            backplate.localRotation = Quaternion.identity;
+            backplate.localScale = new Vector3(0.52f, 0.13f, 0.012f);
+
             // 1. Action Ribbon above digits (Undo, Erase, Pencil, Hint)
-            float ribbonZ = pitch * 1.5f;
-            float ribbonStartX = -1.5f * (buttonSize * 1.2f + spacing);
+            float ribbonPitch = buttonSize * 1.25f + spacing;
+            float ribbonStartX = -1.5f * ribbonPitch;
+            float ribbonY = 0.040f;
 
+            if (undoButton == null) undoButton = transform.Find("Btn_Undo")?.GetComponent<TactileKeypadButton>();
             if (undoButton == null) undoButton = CreateProceduralButton("Btn_Undo", -1, "UNDO", null);
-            undoButton.transform.localPosition = new Vector3(ribbonStartX, 0.005f, ribbonZ);
-            undoButton.transform.localScale = new Vector3(buttonSize * 1.1f, 0.012f, buttonSize * 0.85f);
+            undoButton.transform.localPosition = new Vector3(ribbonStartX, ribbonY, -0.006f);
+            undoButton.transform.localRotation = Quaternion.identity;
+            undoButton.transform.localScale = new Vector3(buttonSize * 1.15f, 0.034f, 0.014f);
+            RealignButtonVisuals(undoButton, false);
 
+            if (eraseButton == null) eraseButton = transform.Find("Btn_Erase")?.GetComponent<TactileKeypadButton>();
             if (eraseButton == null) eraseButton = CreateProceduralButton("Btn_Erase", 0, "ERASE", null);
-            eraseButton.transform.localPosition = new Vector3(ribbonStartX + (buttonSize * 1.2f + spacing), 0.005f, ribbonZ);
-            eraseButton.transform.localScale = new Vector3(buttonSize * 1.1f, 0.012f, buttonSize * 0.85f);
+            eraseButton.transform.localPosition = new Vector3(ribbonStartX + ribbonPitch, ribbonY, -0.006f);
+            eraseButton.transform.localRotation = Quaternion.identity;
+            eraseButton.transform.localScale = new Vector3(buttonSize * 1.15f, 0.034f, 0.014f);
+            RealignButtonVisuals(eraseButton, false);
 
+            if (pencilButton == null) pencilButton = transform.Find("Btn_Pencil")?.GetComponent<TactileKeypadButton>();
             if (pencilButton == null) pencilButton = CreateProceduralButton("Btn_Pencil", -2, "NOTE", null);
-            pencilButton.transform.localPosition = new Vector3(ribbonStartX + 2 * (buttonSize * 1.2f + spacing), 0.005f, ribbonZ);
-            pencilButton.transform.localScale = new Vector3(buttonSize * 1.1f, 0.012f, buttonSize * 0.85f);
+            pencilButton.transform.localPosition = new Vector3(ribbonStartX + 2 * ribbonPitch, ribbonY, -0.006f);
+            pencilButton.transform.localRotation = Quaternion.identity;
+            pencilButton.transform.localScale = new Vector3(buttonSize * 1.15f, 0.034f, 0.014f);
+            RealignButtonVisuals(pencilButton, false);
 
+            if (hintButton == null) hintButton = transform.Find("Btn_Hint")?.GetComponent<TactileKeypadButton>();
             if (hintButton == null) hintButton = CreateProceduralButton("Btn_Hint", -3, "HINT", null);
-            hintButton.transform.localPosition = new Vector3(ribbonStartX + 3 * (buttonSize * 1.2f + spacing), 0.005f, ribbonZ);
-            hintButton.transform.localScale = new Vector3(buttonSize * 1.1f, 0.012f, buttonSize * 0.85f);
+            hintButton.transform.localPosition = new Vector3(ribbonStartX + 3 * ribbonPitch, ribbonY, -0.006f);
+            hintButton.transform.localRotation = Quaternion.identity;
+            hintButton.transform.localScale = new Vector3(buttonSize * 1.15f, 0.034f, 0.014f);
+            RealignButtonVisuals(hintButton, false);
 
-            // 2. Numeric Digits 1-9 in horizontal curved strip or 3x3
-            // Horizontal ergonomic arc (9 tokens in an accessible concave curve)
+            // 2. Numeric Digits 1-9 in horizontal strip directly facing player
             float startX = -4f * pitch;
+            float digitsY = -0.020f;
             for (int i = 0; i < 9; i++)
             {
                 int digit = i + 1;
                 float x = startX + i * pitch;
-                // Parabolic curve: outer tokens slightly closer to player
-                float z = -Mathf.Pow(i - 4, 2) * arcCurvature * 0.15f;
 
+                if (digitButtons[i] == null)
+                {
+                    digitButtons[i] = transform.Find($"Btn_Digit_{digit}")?.GetComponent<TactileKeypadButton>();
+                }
                 if (digitButtons[i] == null)
                 {
                     digitButtons[i] = CreateProceduralButton($"Btn_Digit_{digit}", digit, digit.ToString(), "9");
                 }
 
-                digitButtons[i].transform.localPosition = new Vector3(x, 0.005f, z);
-                digitButtons[i].transform.localRotation = Quaternion.Euler(0f, (i - 4) * -3f, 0f);
-                digitButtons[i].transform.localScale = new Vector3(buttonSize, 0.012f, buttonSize);
+                digitButtons[i].transform.localPosition = new Vector3(x, digitsY, -0.006f);
+                digitButtons[i].transform.localRotation = Quaternion.identity;
+                digitButtons[i].transform.localScale = new Vector3(buttonSize, buttonSize, 0.014f);
+                RealignButtonVisuals(digitButtons[i], true);
             }
 
             RegisterButtonCallbacks();
+        }
+
+        private void RealignButtonVisuals(TactileKeypadButton btn, bool hasBadge)
+        {
+            if (btn == null) return;
+            Transform lbl = btn.transform.Find("Label");
+            if (lbl != null)
+            {
+                lbl.localPosition = new Vector3(0f, hasBadge ? 0.12f : 0f, -0.52f);
+                lbl.localRotation = Quaternion.identity;
+            }
+            Transform bdg = btn.transform.Find("Badge");
+            if (bdg != null)
+            {
+                bdg.localPosition = new Vector3(0f, -0.28f, -0.52f);
+                bdg.localRotation = Quaternion.identity;
+            }
         }
 
         private TactileKeypadButton CreateProceduralButton(string name, int val, string lbl, string badge)
@@ -187,11 +234,11 @@ namespace SudokuVR.Interaction
 
             TactileKeypadButton btn = btnObj.AddComponent<TactileKeypadButton>();
 
-            // Main Label
+            // Main Label on front face facing player
             GameObject txtObj = new GameObject("Label");
             txtObj.transform.SetParent(btnObj.transform, false);
-            txtObj.transform.localPosition = new Vector3(0f, 0.51f, (badge != null) ? 0.12f : 0f);
-            txtObj.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            txtObj.transform.localPosition = new Vector3(0f, (badge != null) ? 0.12f : 0f, -0.52f);
+            txtObj.transform.localRotation = Quaternion.identity;
             txtObj.transform.localScale = new Vector3(0.08f, 0.08f, 0.08f);
 
             TextMeshPro tmp = txtObj.AddComponent<TextMeshPro>();
@@ -205,8 +252,8 @@ namespace SudokuVR.Interaction
             {
                 GameObject badgeObj = new GameObject("Badge");
                 badgeObj.transform.SetParent(btnObj.transform, false);
-                badgeObj.transform.localPosition = new Vector3(0f, 0.51f, -0.28f);
-                badgeObj.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                badgeObj.transform.localPosition = new Vector3(0f, -0.28f, -0.52f);
+                badgeObj.transform.localRotation = Quaternion.identity;
                 badgeObj.transform.localScale = new Vector3(0.05f, 0.05f, 0.05f);
 
                 TextMeshPro badgeTmp = badgeObj.AddComponent<TextMeshPro>();

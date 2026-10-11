@@ -105,12 +105,14 @@ namespace SudokuVR.Interaction
             UpdateVisuals();
         }
 
+        private float _lastPokeTime;
+
         public void TriggerPress()
         {
             if (_isExtinguished) return;
 
             _isPressed = true;
-            _targetLocalPos = _initialLocalPos - transform.up * pressDepth;
+            _targetLocalPos = _initialLocalPos + transform.forward * pressDepth;
             UpdateVisuals();
 
             // Trigger Meta Quest controller haptic pulse
@@ -186,6 +188,8 @@ namespace SudokuVR.Interaction
 
         private void OnTriggerEnter(Collider other)
         {
+            if (Time.time - _lastPokeTime < 0.25f) return;
+            _lastPokeTime = Time.time;
             TriggerPress();
         }
     }

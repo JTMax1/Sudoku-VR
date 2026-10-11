@@ -6,16 +6,18 @@ namespace SudokuVR.Interaction
     /// <summary>
     /// Encapsulates the floating 3D monolith board in a spatial bounding frame.
     /// Provides:
-    /// - Two-handed pinch-to-scale (clamped between 0.4m and 1.5m)
-    /// - Free 6DOF repositioning and tilting via controller grip or hand grab
+    /// - Distance Ray Grab & Proximity Direct Grab for Left & Right Hands and Touch Controllers
+    /// - Two-handed pinch-to-scale (clamped between 0.4m and 1.6m)
+    /// - Free 6DOF repositioning and tilting in 3D space
+    /// - Thumbstick push/pull distance manipulation while grabbing
     /// - Instant One-Tap Recentering (0.65m along player gaze vector at chest height)
-    /// - Passthrough MR vs. Zen Skybox environment switching
+    /// - Passthrough MR vs. Zen Minimalist Skybox/Dojo environment switching
     /// </summary>
     public class SpatialBoardAnchor : MonoBehaviour
     {
         [Header("Scale Boundaries (Meters)")]
         [SerializeField] private float minScale = 0.4f;
-        [SerializeField] private float maxScale = 1.5f;
+        [SerializeField] private float maxScale = 1.6f;
         [SerializeField] private float defaultScale = 0.85f;
 
         [Header("Recentering Geometry")]
@@ -23,11 +25,12 @@ namespace SudokuVR.Interaction
         [SerializeField] private float chestHeightOffset = -0.15f;
 
         [Header("Grab & Manipulation Distance")]
-        [SerializeField] private float grabRadius = 0.55f; // Grab range around board center or handles
+        [SerializeField] private float grabRadius = 0.60f; // Proximity grab range around handles/frame
 
         [Header("Passthrough & Environment")]
         [SerializeField] private OVRPassthroughLayer passthroughLayer;
         [SerializeField] private bool startInPassthrough = true;
+        [SerializeField] private GameObject zenEnvironmentRoot;
 
         [Header("Bounding Frame & Handles")]
         [SerializeField] private Transform leftGrabTab;
@@ -42,11 +45,18 @@ namespace SudokuVR.Interaction
         private bool _isPassthroughActive;
         private Vector3 _baseScaleVector;
 
-        // Grab state
+        // Grab states
         private bool _isGrabbedRight;
         private bool _isGrabbedLeft;
+        private bool _isDistanceGrabRight;
+        private bool _isDistanceGrabLeft;
         private Vector3 _grabOffsetRight;
         private Vector3 _grabOffsetLeft;
+        private Quaternion _grabRotOffsetRight;
+        private Quaternion _grabRotOffsetLeft;
+        private float _currentGrabDistanceRight;
+        private float _currentGrabDistanceLeft;
+
         private float _initialTwoHandDist;
         private float _initialScaleOnTwoHandGrab;
 
@@ -69,22 +79,30 @@ namespace SudokuVR.Interaction
                 passthroughLayer = FindAnyObjectByType<OVRPassthroughLayer>();
             }
 
+            EnsureZenEnvironmentVisuals(false);
             SetPassthroughState(startInPassthrough);
         }
 
         private void Start()
         {
+            BindTrackingRig();
+            RecenterToPlayerGaze();
+        }
+
+        private void BindTrackingRig()
+        {
+            if (_cameraRig == null) _cameraRig = FindAnyObjectByType<OVRCameraRig>();
             if (_cameraRig != null)
             {
                 _rightHand = _cameraRig.rightHandAnchor?.GetComponentInChildren<OVRHand>();
                 _leftHand = _cameraRig.leftHandAnchor?.GetComponentInChildren<OVRHand>();
             }
-
-            RecenterToPlayerGaze();
         }
 
         private void Update()
         {
+            if (_rightHand == null || _leftHand == null) BindTrackingRig();
+
             HandleXRBoardManipulation();
             HandleControllerShortcuts();
         }
@@ -93,68 +111,118 @@ namespace SudokuVR.Interaction
         {
             Vector3 rightPos = Vector3.zero;
             Vector3 leftPos = Vector3.zero;
-            bool rightGrabActive = false;
-            bool leftGrabActive = false;
+            Quaternion rightRot = Quaternion.identity;
+            Quaternion leftRot = Quaternion.identity;
+            Vector3 rightForward = Vector3.forward;
+            Vector3 leftForward = Vector3.forward;
 
-            // 1. Right Hand / Controller Grab Check
+            bool rightGripPressed = false;
+            bool leftGripPressed = false;
+
+            // 1. Right Hand / Controller
             if (_rightHand != null && _rightHand.IsTracked)
             {
-                rightPos = _rightHand.transform.position;
-                // Middle finger pinch or palm grab
-                rightGrabActive = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) ||
-                                  _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Pinky);
+                Transform pointer = _rightHand.PointerPose != null ? _rightHand.PointerPose : _rightHand.transform;
+                rightPos = pointer.position;
+                rightRot = pointer.rotation;
+                rightForward = pointer.forward;
+
+                rightGripPressed = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) ||
+                                   _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Pinky);
             }
             else if (_cameraRig?.rightControllerAnchor != null)
             {
                 rightPos = _cameraRig.rightControllerAnchor.position;
-                rightGrabActive = OVRInput.Get(OVRInput.Button.PrimaryHandTrigger, OVRInput.Controller.RTouch) ||
-                                  OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, OVRInput.Controller.RTouch) > 0.45f;
+                rightRot = _cameraRig.rightControllerAnchor.rotation;
+                rightForward = _cameraRig.rightControllerAnchor.forward;
+
+                rightGripPressed = OVRInput.Get(OVRInput.Button.PrimaryHandTrigger, OVRInput.Controller.RTouch) ||
+                                   OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, OVRInput.Controller.RTouch) > 0.45f;
             }
 
-            // 2. Left Hand / Controller Grab Check
+            // 2. Left Hand / Controller
             if (_leftHand != null && _leftHand.IsTracked)
             {
-                leftPos = _leftHand.transform.position;
-                leftGrabActive = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) ||
-                                 _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Pinky);
+                Transform pointer = _leftHand.PointerPose != null ? _leftHand.PointerPose : _leftHand.transform;
+                leftPos = pointer.position;
+                leftRot = pointer.rotation;
+                leftForward = pointer.forward;
+
+                leftGripPressed = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) ||
+                                  _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Pinky);
             }
             else if (_cameraRig?.leftControllerAnchor != null)
             {
                 leftPos = _cameraRig.leftControllerAnchor.position;
-                leftGrabActive = OVRInput.Get(OVRInput.Button.PrimaryHandTrigger, OVRInput.Controller.LTouch) ||
-                                 OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, OVRInput.Controller.LTouch) > 0.45f;
+                leftRot = _cameraRig.leftControllerAnchor.rotation;
+                leftForward = _cameraRig.leftControllerAnchor.forward;
+
+                leftGripPressed = OVRInput.Get(OVRInput.Button.PrimaryHandTrigger, OVRInput.Controller.LTouch) ||
+                                  OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, OVRInput.Controller.LTouch) > 0.45f;
             }
 
-            // Evaluate Proximity to Board
+            // 3. Proximity and Ray Checks
             float distRightToBoard = Vector3.Distance(rightPos, transform.position);
             float distLeftToBoard = Vector3.Distance(leftPos, transform.position);
 
-            bool canGrabRight = distRightToBoard <= (grabRadius * transform.localScale.x);
-            bool canGrabLeft = distLeftToBoard <= (grabRadius * transform.localScale.x);
+            bool proximityRight = distRightToBoard <= (grabRadius * transform.localScale.x);
+            bool proximityLeft = distLeftToBoard <= (grabRadius * transform.localScale.x);
 
-            // Handle Right Grab Transition
-            if (rightGrabActive && canGrabRight && !_isGrabbedRight)
+            // Distance Ray check: Is the ray pointing near the board?
+            Ray rightRay = new Ray(rightPos, rightForward);
+            Ray leftRay = new Ray(leftPos, leftForward);
+            bool rayRightAiming = IsRayAimingAtBoard(rightRay, out float hitDistRight);
+            bool rayLeftAiming = IsRayAimingAtBoard(leftRay, out float hitDistLeft);
+
+            // RIGHT HAND GRAB TRIGGER
+            if (rightGripPressed && !_isGrabbedRight)
             {
-                _isGrabbedRight = true;
-                _grabOffsetRight = transform.position - rightPos;
+                if (proximityRight)
+                {
+                    _isGrabbedRight = true;
+                    _isDistanceGrabRight = false;
+                    _grabOffsetRight = transform.position - rightPos;
+                    _grabRotOffsetRight = Quaternion.Inverse(rightRot) * transform.rotation;
+                }
+                else if (rayRightAiming)
+                {
+                    _isGrabbedRight = true;
+                    _isDistanceGrabRight = true;
+                    _currentGrabDistanceRight = hitDistRight;
+                    _grabRotOffsetRight = Quaternion.Inverse(rightRot) * transform.rotation;
+                }
             }
-            else if (!rightGrabActive && _isGrabbedRight)
+            else if (!rightGripPressed && _isGrabbedRight)
             {
                 _isGrabbedRight = false;
+                _isDistanceGrabRight = false;
             }
 
-            // Handle Left Grab Transition
-            if (leftGrabActive && canGrabLeft && !_isGrabbedLeft)
+            // LEFT HAND GRAB TRIGGER
+            if (leftGripPressed && !_isGrabbedLeft)
             {
-                _isGrabbedLeft = true;
-                _grabOffsetLeft = transform.position - leftPos;
+                if (proximityLeft)
+                {
+                    _isGrabbedLeft = true;
+                    _isDistanceGrabLeft = false;
+                    _grabOffsetLeft = transform.position - leftPos;
+                    _grabRotOffsetLeft = Quaternion.Inverse(leftRot) * transform.rotation;
+                }
+                else if (rayLeftAiming)
+                {
+                    _isGrabbedLeft = true;
+                    _isDistanceGrabLeft = true;
+                    _currentGrabDistanceLeft = hitDistLeft;
+                    _grabRotOffsetLeft = Quaternion.Inverse(leftRot) * transform.rotation;
+                }
             }
-            else if (!leftGrabActive && _isGrabbedLeft)
+            else if (!leftGripPressed && _isGrabbedLeft)
             {
                 _isGrabbedLeft = false;
+                _isDistanceGrabLeft = false;
             }
 
-            // 3. Two-Handed Manipulation & Scaling
+            // 4. Two-Handed Manipulation & Scaling
             if (_isGrabbedRight && _isGrabbedLeft)
             {
                 float currentDist = Vector3.Distance(rightPos, leftPos);
@@ -166,42 +234,85 @@ namespace SudokuVR.Interaction
                 }
                 else if (currentDist > 0.05f)
                 {
-                    // Scale smoothly proportional to hand distance
+                    // Pinch-to-scale smoothly
                     float scaleFactor = currentDist / _initialTwoHandDist;
                     SetBoardScale(_initialScaleOnTwoHandGrab * scaleFactor);
 
-                    // Move to midpoint between hands
+                    // Position at midpoint between hands
                     Vector3 midpoint = (rightPos + leftPos) * 0.5f;
                     transform.position = midpoint;
 
-                    // Rotate board along hand direction
+                    // Orient along hand vector
                     Vector3 handDir = (rightPos - leftPos).normalized;
                     if (handDir.sqrMagnitude > 0.01f)
                     {
                         Vector3 forward = Vector3.Cross(handDir, Vector3.up).normalized;
                         if (forward.sqrMagnitude > 0.01f)
                         {
-                            transform.rotation = Quaternion.LookRotation(forward);
+                            transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
                         }
                     }
                 }
             }
-            // 4. One-Handed Reposition (Right Hand)
+            // 5. One-Handed Reposition (Right Hand)
             else if (_isGrabbedRight)
             {
                 _initialTwoHandDist = 0f;
-                transform.position = rightPos + _grabOffsetRight;
+
+                // Controller thumbstick pushes/pulls distance
+                float stickY = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.RTouch).y;
+                if (Mathf.Abs(stickY) > 0.1f)
+                {
+                    _currentGrabDistanceRight = Mathf.Clamp(_currentGrabDistanceRight + stickY * Time.deltaTime * 0.8f, 0.35f, 2.5f);
+                }
+
+                if (_isDistanceGrabRight)
+                {
+                    transform.position = rightPos + rightForward * _currentGrabDistanceRight;
+                    transform.rotation = rightRot * _grabRotOffsetRight;
+                }
+                else
+                {
+                    transform.position = rightPos + _grabOffsetRight;
+                }
             }
-            // 5. One-Handed Reposition (Left Hand)
+            // 6. One-Handed Reposition (Left Hand)
             else if (_isGrabbedLeft)
             {
                 _initialTwoHandDist = 0f;
-                transform.position = leftPos + _grabOffsetLeft;
+
+                float stickY = OVRInput.Get(OVRInput.Axis2D.PrimaryThumbstick, OVRInput.Controller.LTouch).y;
+                if (Mathf.Abs(stickY) > 0.1f)
+                {
+                    _currentGrabDistanceLeft = Mathf.Clamp(_currentGrabDistanceLeft + stickY * Time.deltaTime * 0.8f, 0.35f, 2.5f);
+                }
+
+                if (_isDistanceGrabLeft)
+                {
+                    transform.position = leftPos + leftForward * _currentGrabDistanceLeft;
+                    transform.rotation = leftRot * _grabRotOffsetLeft;
+                }
+                else
+                {
+                    transform.position = leftPos + _grabOffsetLeft;
+                }
             }
             else
             {
                 _initialTwoHandDist = 0f;
             }
+        }
+
+        private bool IsRayAimingAtBoard(Ray ray, out float distance)
+        {
+            distance = 0f;
+            Bounds boardBounds = new Bounds(transform.position, Vector3.one * (0.65f * transform.localScale.x));
+            if (boardBounds.IntersectRay(ray, out float hitDist))
+            {
+                distance = hitDist;
+                return hitDist <= 3.5f;
+            }
+            return false;
         }
 
         private void HandleControllerShortcuts()
@@ -215,7 +326,8 @@ namespace SudokuVR.Interaction
         }
 
         /// <summary>
-        /// Pins the board 0.65m directly along the player's current head gaze vector at chest height.
+        /// Pins the board 0.65m directly along the player's current head gaze vector at chest height,
+        /// standing upright like a TV facing the player.
         /// </summary>
         public void RecenterToPlayerGaze()
         {
@@ -236,12 +348,9 @@ namespace SudokuVR.Interaction
             Vector3 targetPos = headPos + horizontalForward * defaultGazeDistance + Vector3.up * chestHeightOffset;
             transform.position = targetPos;
 
-            Vector3 lookDirection = headPos - targetPos;
-            lookDirection.y = 0f;
-            if (lookDirection.sqrMagnitude > 0.001f)
-            {
-                transform.rotation = Quaternion.LookRotation(-lookDirection);
-            }
+            // In our vertical TV coordinate system, the front face faces -Z towards player
+            // So transform.forward points along horizontalForward (away from player)
+            transform.rotation = Quaternion.LookRotation(horizontalForward, Vector3.up);
 
             OnBoardRecentered?.Invoke();
         }
@@ -272,59 +381,92 @@ namespace SudokuVR.Interaction
                 passthroughLayer.hidden = !enablePassthrough;
             }
 
-            if (_mainCamera != null)
+            // Update all active eye cameras in rig
+            Camera[] cams = Camera.allCameras;
+            foreach (var cam in cams)
             {
+                if (cam == null) continue;
+
                 if (enablePassthrough)
                 {
-                    _mainCamera.clearFlags = CameraClearFlags.SolidColor;
-                    _mainCamera.backgroundColor = new Color(0f, 0f, 0f, 0f);
+                    cam.clearFlags = CameraClearFlags.SolidColor;
+                    cam.backgroundColor = new Color(0f, 0f, 0f, 0f); // Alpha 0 punches through to Quest passthrough
                 }
                 else
                 {
-                    _mainCamera.clearFlags = CameraClearFlags.Skybox;
+                    cam.clearFlags = CameraClearFlags.SolidColor;
+                    cam.backgroundColor = new Color(0.06f, 0.08f, 0.12f, 1.0f); // Opaque alpha blocks passthrough completely
                 }
             }
+
+            EnsureZenEnvironmentVisuals(!enablePassthrough);
 
             OnPassthroughToggled?.Invoke(_isPassthroughActive);
         }
 
+        private void EnsureZenEnvironmentVisuals(bool showZenEnvironment)
+        {
+            if (zenEnvironmentRoot == null)
+            {
+                Transform found = transform.root.Find("ZenStudio_Environment") ?? GameObject.Find("ZenStudio_Environment")?.transform;
+                if (found != null) zenEnvironmentRoot = found.gameObject;
+            }
+
+            if (zenEnvironmentRoot != null)
+            {
+                zenEnvironmentRoot.SetActive(showZenEnvironment);
+            }
+        }
+
         public void BuildBoundingFrame(float boardSpan)
         {
+            // Sleek TV Bounding Frame standing in the X-Y plane
             if (boundingFrameMesh == null)
             {
                 GameObject frameObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 frameObj.name = "BoundingFrame";
                 frameObj.transform.SetParent(transform, false);
-                frameObj.transform.localPosition = new Vector3(0f, -0.015f, 0f);
-                float frameWidth = boardSpan + 0.12f;
-                frameObj.transform.localScale = new Vector3(frameWidth, 0.015f, frameWidth);
+                frameObj.transform.localPosition = new Vector3(0f, 0f, 0.012f);
+                float frameWidth = boardSpan + 0.10f;
+                frameObj.transform.localScale = new Vector3(frameWidth, frameWidth, 0.018f);
 
-                var col = frameObj.GetComponent<Collider>();
-                if (col != null)
-                {
-                    if (Application.isPlaying) Destroy(col);
-                    else DestroyImmediate(col);
-                }
+                // Frame box collider for distance grab raycasting
+                var col = frameObj.GetComponent<BoxCollider>();
+                if (col == null) col = frameObj.AddComponent<BoxCollider>();
+                col.isTrigger = false;
+
                 boundingFrameMesh = frameObj.transform;
             }
 
+            // Left Grab Handle
             if (leftGrabTab == null)
             {
                 GameObject leftTab = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 leftTab.name = "GrabHandle_Left";
                 leftTab.transform.SetParent(transform, false);
-                leftTab.transform.localPosition = new Vector3(-boardSpan * 0.58f, 0f, 0f);
-                leftTab.transform.localScale = new Vector3(0.04f, 0.02f, 0.16f);
+                leftTab.transform.localPosition = new Vector3(-boardSpan * 0.56f, 0f, 0f);
+                leftTab.transform.localScale = new Vector3(0.038f, 0.16f, 0.024f);
+
+                var col = leftTab.GetComponent<BoxCollider>();
+                if (col == null) col = leftTab.AddComponent<BoxCollider>();
+                col.isTrigger = false;
+
                 leftGrabTab = leftTab.transform;
             }
 
+            // Right Grab Handle
             if (rightGrabTab == null)
             {
                 GameObject rightTab = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 rightTab.name = "GrabHandle_Right";
                 rightTab.transform.SetParent(transform, false);
-                rightTab.transform.localPosition = new Vector3(boardSpan * 0.58f, 0f, 0f);
-                rightTab.transform.localScale = new Vector3(0.04f, 0.02f, 0.16f);
+                rightTab.transform.localPosition = new Vector3(boardSpan * 0.56f, 0f, 0f);
+                rightTab.transform.localScale = new Vector3(0.038f, 0.16f, 0.024f);
+
+                var col = rightTab.GetComponent<BoxCollider>();
+                if (col == null) col = rightTab.AddComponent<BoxCollider>();
+                col.isTrigger = false;
+
                 rightGrabTab = rightTab.transform;
             }
         }

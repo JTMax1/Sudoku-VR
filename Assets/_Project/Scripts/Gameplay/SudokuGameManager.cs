@@ -32,15 +32,16 @@ namespace SudokuVR.Gameplay
         [SerializeField] private bool autoGenerateOnStart = true;
         [SerializeField] private int maxMistakesAllowed = 3;
 
-        private SudokuGenerator _generator;
-        private SudokuBoardState _boardState;
-        private MoveHistory _moveHistory;
+        private SudokuGenerator _generator = new SudokuGenerator();
+        private SudokuBoardState _boardState = new SudokuBoardState();
+        private MoveHistory _moveHistory = new MoveHistory();
 
         private readonly byte[] _puzzleBuffer = new byte[SudokuData.CellCount];
         private readonly byte[] _solutionBuffer = new byte[SudokuData.CellCount];
 
         private int _mistakeCount = 0;
         private bool _isGameOver = false;
+        private bool _isPaused = false;
 
         public SudokuBoardState BoardState => _boardState;
         public SudokuBoardView BoardView => boardView;
@@ -54,10 +55,13 @@ namespace SudokuVR.Gameplay
         public int MistakeCount => _mistakeCount;
         public int MaxMistakes => maxMistakesAllowed;
         public bool IsGameOver => _isGameOver;
+        public bool IsPaused => _isPaused;
+        public bool HasActiveGame => _boardState != null && _boardState.IsInitialized && !_isGameOver;
 
         public event Action<int, int> OnMistakesUpdated; // (current, max)
         public event Action<bool> OnGameFinished; // true for victory, false for defeat
         public event Action<HintResult> OnHintReceived;
+        public event Action<bool> OnPauseStateChanged; // true for paused, false for unpaused
 
         private void Awake()
         {
@@ -133,7 +137,42 @@ namespace SudokuVR.Gameplay
 
         private void Update()
         {
-            HandleEditorKeyboardInput();
+            // Controller Start/Menu button or keyboard Escape toggles pause
+            if (OVRInput.GetDown(OVRInput.Button.Start, OVRInput.Controller.LTouch) ||
+                OVRInput.GetDown(OVRInput.Button.Start, OVRInput.Controller.RTouch) ||
+                (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame))
+            {
+                TogglePause();
+            }
+
+            if (!_isPaused)
+            {
+                HandleEditorKeyboardInput();
+            }
+        }
+
+        public void PauseGame()
+        {
+            if (_isGameOver || _isPaused) return;
+            _isPaused = true;
+            timerSystem?.PauseTimer();
+            OnPauseStateChanged?.Invoke(true);
+            Debug.Log("[Zenith Sudoku XR] Game Paused.");
+        }
+
+        public void ResumeGame()
+        {
+            if (!_isPaused) return;
+            _isPaused = false;
+            timerSystem?.ResumeTimer();
+            OnPauseStateChanged?.Invoke(false);
+            Debug.Log("[Zenith Sudoku XR] Game Resumed.");
+        }
+
+        public void TogglePause()
+        {
+            if (_isPaused) ResumeGame();
+            else PauseGame();
         }
 
         /// <summary>
@@ -144,8 +183,15 @@ namespace SudokuVR.Gameplay
             CurrentDifficulty = difficulty;
             _mistakeCount = 0;
             _isGameOver = false;
+            _isPaused = false;
+
+            if (_generator == null) _generator = new SudokuGenerator();
+            if (_boardState == null) _boardState = new SudokuBoardState();
+            if (_moveHistory == null) _moveHistory = new MoveHistory();
+
             _moveHistory.Clear();
 
+            OnPauseStateChanged?.Invoke(false);
             OnMistakesUpdated?.Invoke(_mistakeCount, maxMistakesAllowed);
 
             Stopwatch sw = Stopwatch.StartNew();
@@ -197,9 +243,11 @@ namespace SudokuVR.Gameplay
 
         public void RestartCurrentGame()
         {
+            _isPaused = false;
             _mistakeCount = 0;
             _isGameOver = false;
             _moveHistory.Clear();
+            OnPauseStateChanged?.Invoke(false);
             OnMistakesUpdated?.Invoke(_mistakeCount, maxMistakesAllowed);
 
             _boardState.Initialize(_puzzleBuffer, _solutionBuffer);
@@ -220,6 +268,8 @@ namespace SudokuVR.Gameplay
         {
             _mistakeCount = 2; // Gives 1 more chance
             _isGameOver = false;
+            _isPaused = false;
+            OnPauseStateChanged?.Invoke(false);
             OnMistakesUpdated?.Invoke(_mistakeCount, maxMistakesAllowed);
             timerSystem?.ResumeTimer();
             Debug.Log("[Zenith Sudoku XR] Player revived with 1 strike remaining!");
@@ -227,13 +277,14 @@ namespace SudokuVR.Gameplay
 
         private void HandleCellSelectedByLocalPlayer(int row, int col)
         {
+            if (_isPaused) return;
             _boardState.SetSelection(row, col, PlayerId.LocalPlayer);
             networkSync?.SendCellSelected(row, col, PlayerId.LocalPlayer);
         }
 
         public void HandleInputDigit(int digit)
         {
-            if (_isGameOver || boardView == null || !boardView.HasSelection) return;
+            if (_isPaused || _isGameOver || boardView == null || !boardView.HasSelection) return;
 
             int r = boardView.SelectedRow;
             int c = boardView.SelectedCol;
