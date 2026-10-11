@@ -198,6 +198,16 @@ namespace SudokuVR.Gameplay
             bool success = _generator.Generate(difficulty, _puzzleBuffer, _solutionBuffer);
             sw.Stop();
 
+            if (!success || sw.ElapsedMilliseconds > 150)
+            {
+                // Instant fallback to pre-validated seed catalogue to guarantee 0 hitching on Meta Quest
+                if (VerifiedPuzzleCatalogue.TryGetSeed(difficulty, UnityEngine.Random.Range(0, 100), _puzzleBuffer, _solutionBuffer))
+                {
+                    success = true;
+                    Debug.Log($"[SudokuVR] Used VerifiedPuzzleCatalogue seed for {difficulty} (generation time was {sw.ElapsedMilliseconds}ms).");
+                }
+            }
+
             if (!success)
             {
                 Debug.LogError("[SudokuVR] Puzzle generation failed!");
@@ -280,6 +290,7 @@ namespace SudokuVR.Gameplay
             if (_isPaused) return;
             _boardState.SetSelection(row, col, PlayerId.LocalPlayer);
             networkSync?.SendCellSelected(row, col, PlayerId.LocalPlayer);
+            TactileAudioService.Instance?.PlayTap();
         }
 
         public void HandleInputDigit(int digit)
@@ -301,6 +312,7 @@ namespace SudokuVR.Gameplay
                 ushort newNotes = _boardState.GetNotes(r, c);
 
                 _moveHistory.RecordMove(r, c, 0, 0, prevNotes, newNotes);
+                TactileAudioService.Instance?.PlayTap();
             }
             else
             {
@@ -315,6 +327,7 @@ namespace SudokuVR.Gameplay
                     _mistakeCount++;
                     scoringEngine?.RecordMistake();
                     OnMistakesUpdated?.Invoke(_mistakeCount, maxMistakesAllowed);
+                    TactileAudioService.Instance?.PlayConflict();
 
                     Debug.LogWarning($"[Zenith Sudoku XR] Mistake registered: ({r},{c}) = {digit}. Strike {_mistakeCount}/{maxMistakesAllowed}!");
 
@@ -327,6 +340,7 @@ namespace SudokuVR.Gameplay
                 else
                 {
                     scoringEngine?.RecordCorrectPlacement(CurrentDifficulty);
+                    TactileAudioService.Instance?.PlayDigitPlaced(digit);
                 }
 
                 bool modified = _boardState.SetCell(r, c, digit, PlayerId.LocalPlayer);
@@ -357,11 +371,13 @@ namespace SudokuVR.Gameplay
                 _moveHistory.RecordMove(r, c, prevVal, 0, prevNotes, 0);
                 networkSync?.SendCellModified(r, c, 0, PlayerId.LocalPlayer);
                 floatingKeypad?.UpdateRemainingCounts(_boardState);
+                TactileAudioService.Instance?.PlayErase();
             }
             else if (prevNotes > 0)
             {
                 _boardState.ClearNotes(r, c);
                 _moveHistory.RecordMove(r, c, 0, 0, prevNotes, 0);
+                TactileAudioService.Instance?.PlayErase();
             }
         }
 
@@ -383,12 +399,14 @@ namespace SudokuVR.Gameplay
                 }
 
                 boardView?.SelectCell(move.Row, move.Col);
+                TactileAudioService.Instance?.PlayTap();
             }
         }
 
         private void HandleInputPencilToggled(bool active)
         {
             // Pencil mode state updated in floatingKeypad
+            TactileAudioService.Instance?.PlayTap();
         }
 
         public void HandleInputHintRequested()
@@ -400,6 +418,7 @@ namespace SudokuVR.Gameplay
             {
                 boardView?.SelectCell(hint.Row, hint.Col);
                 OnHintReceived?.Invoke(hint);
+                TactileAudioService.Instance?.PlayHint();
                 Debug.Log($"<color=#FFD700><b>[Smart Hint]</b></color> {hint.Technique}: {hint.Description}");
             }
         }
@@ -423,12 +442,14 @@ namespace SudokuVR.Gameplay
             {
                 scoringEngine?.CalculateFinalBonus(elapsed, CurrentDifficulty, _mistakeCount);
                 ProgressionManager.Instance?.RecordGameVictory(CurrentDifficulty, elapsed, _mistakeCount);
+                TactileAudioService.Instance?.PlayVictoryFanfare();
 
                 Debug.Log("<color=#34C759><b>[Zenith Sudoku XR] VICTORY! Puzzle solved with perfection!</b></color>");
             }
             else
             {
                 ProgressionManager.Instance?.RecordGameDefeat();
+                TactileAudioService.Instance?.PlayConflict();
                 Debug.LogWarning("<color=#FF3B30><b>[Zenith Sudoku XR] DEFEAT! 3 Strikes reached.</b></color>");
             }
 

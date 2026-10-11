@@ -113,6 +113,9 @@ namespace SudokuVR.UI
             {
                 continueHeroButton.gameObject.SetActive(hasActive);
             }
+
+            var diorama = GetComponentInChildren<CampaignDioramaController>();
+            diorama?.RefreshAllNodes();
         }
 
         public void ContinueActiveGame()

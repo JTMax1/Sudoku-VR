@@ -23,20 +23,20 @@ namespace SudokuVR.Interaction
         [SerializeField] private TMP_Text[] pencilNoteTexts = new TMP_Text[9];
         [SerializeField] private BoxCollider interactionCollider;
 
-        [Header("Colors (URP Acrylic & Emissive Palette)")]
-        [SerializeField] private Color defaultBgColor = new Color(0.10f, 0.12f, 0.16f, 0.95f);
-        [SerializeField] private Color prefilledBgColor = new Color(0.06f, 0.08f, 0.11f, 1.0f);
-        [SerializeField] private Color selectedBgColor = new Color(0.0f, 0.72f, 0.98f, 1.0f);
-        [SerializeField] private Color relatedBgColor = new Color(0.16f, 0.22f, 0.30f, 0.95f);
-        [SerializeField] private Color identicalBgColor = new Color(0.25f, 0.45f, 0.65f, 1.0f);
-        [SerializeField] private Color conflictBgColor = new Color(0.92f, 0.20f, 0.20f, 1.0f);
-        [SerializeField] private Color correctBgColor = new Color(0.12f, 0.82f, 0.42f, 1.0f);
+        [Header("Colors (Luxury Ceramic & Enamel Palette)")]
+        [SerializeField] private Color defaultBgColor = new Color(0.96f, 0.97f, 0.98f, 1.0f);   // Glazed Milk Porcelain
+        [SerializeField] private Color prefilledBgColor = new Color(0.93f, 0.94f, 0.96f, 1.0f); // Inset Ceramic
+        [SerializeField] private Color selectedBgColor = new Color(0.96f, 0.82f, 0.30f, 1.0f);  // Champagne Gold selection
+        [SerializeField] private Color relatedBgColor = new Color(0.88f, 0.92f, 0.96f, 1.0f);   // Gentle Ivory wash
+        [SerializeField] private Color identicalBgColor = new Color(0.80f, 0.88f, 0.98f, 1.0f); // Soft Sky highlight
+        [SerializeField] private Color conflictBgColor = new Color(0.95f, 0.42f, 0.42f, 1.0f);  // Coral Velvet
+        [SerializeField] private Color correctBgColor = new Color(0.35f, 0.85f, 0.55f, 1.0f);   // Jade Green
 
-        [SerializeField] private Color defaultTextColor = new Color(0.70f, 0.85f, 1.0f, 1f);
-        [SerializeField] private Color prefilledTextColor = new Color(0.98f, 0.98f, 1.0f, 1f);
-        [SerializeField] private Color selectedTextColor = Color.white;
+        [SerializeField] private Color defaultTextColor = new Color(0.12f, 0.35f, 0.85f, 1f);   // Royal Sapphire for player digits
+        [SerializeField] private Color prefilledTextColor = new Color(0.10f, 0.12f, 0.15f, 1f); // Obsidian Black for immutable clues
+        [SerializeField] private Color selectedTextColor = new Color(0.08f, 0.10f, 0.12f, 1f);  // Crisp contrast on gold
         [SerializeField] private Color conflictTextColor = Color.white;
-        [SerializeField] private Color pencilNoteColor = new Color(0.55f, 0.75f, 0.95f, 0.85f);
+        [SerializeField] private Color pencilNoteColor = new Color(0.35f, 0.42f, 0.52f, 0.95f);  // Slate Graphite notes
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorId = Shader.PropertyToID("_Color");

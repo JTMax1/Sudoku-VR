@@ -65,6 +65,7 @@ namespace SudokuVR.Core
             IsInitialized = true;
 
             RecalculateConflicts();
+            IsCompleted = CheckBoardCompletion();
             OnBoardReset?.Invoke();
         }
 
@@ -275,9 +276,11 @@ namespace SudokuVR.Core
             {
                 if (_currentValues[i] == 0 || _isConflict[i] || _currentValues[i] != _solution[i])
                 {
+                    IsCompleted = false;
                     return false;
                 }
             }
+            IsCompleted = true;
             return true;
         }
 
