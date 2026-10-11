@@ -264,7 +264,7 @@ namespace SudokuVR.UI
 
             _gameManager?.PauseGame();
 
-            MainMenuController home = FindAnyObjectByType<MainMenuController>();
+            MainMenuController home = FindAnyObjectByType<MainMenuController>(FindObjectsInactive.Include);
             if (home != null)
             {
                 home.ShowHubView();

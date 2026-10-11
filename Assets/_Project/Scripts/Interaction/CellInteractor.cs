@@ -30,6 +30,7 @@ namespace SudokuVR.Interaction
 
         [Header("Laser Visuals")]
         [SerializeField] private LineRenderer rayVisual;
+        [SerializeField] private GameObject pointerReticle;
         [SerializeField] private Color rayNormalColor = new Color(0f, 0.75f, 1f, 0.45f);
         [SerializeField] private Color rayHoverColor = new Color(0f, 1f, 0.75f, 0.85f);
         [SerializeField] private Color rayClickColor = new Color(1f, 0.9f, 0.2f, 1f);
@@ -49,6 +50,9 @@ namespace SudokuVR.Interaction
 
         private bool _wasPinchingRight;
         private bool _wasPinchingLeft;
+        private bool _wasRightTriggerDown;
+        private bool _wasLeftTriggerDown;
+        private Material _reticleMaterial;
 
         private void Awake()
         {
@@ -118,7 +122,8 @@ namespace SudokuVR.Interaction
                 {
                     rightHandRay = new Ray(pointer.position, pointer.forward);
                     hasRightHandRay = true;
-                    bool isPinching = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Index);
+                    bool isPinching = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Index) ||
+                                     _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.65f;
                     if (isPinching && !_wasPinchingRight) rightPinching = true;
                     _wasPinchingRight = isPinching;
                 }
@@ -130,7 +135,8 @@ namespace SudokuVR.Interaction
                 {
                     leftHandRay = new Ray(pointer.position, pointer.forward);
                     hasLeftHandRay = true;
-                    bool isPinching = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Index);
+                    bool isPinching = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Index) ||
+                                     _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.65f;
                     if (isPinching && !_wasPinchingLeft) leftPinching = true;
                     _wasPinchingLeft = isPinching;
                 }
@@ -148,17 +154,23 @@ namespace SudokuVR.Interaction
             {
                 rightCtrlRay = new Ray(rightControllerRayOrigin.position, rightControllerRayOrigin.forward);
                 hasRightCtrlRay = true;
-                rightControllerTrigger = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch) ||
-                                         OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch) ||
-                                         OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.RTouch) > 0.65f;
+                bool btnDown = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RTouch) ||
+                               OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch);
+                float triggerAxis = OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
+                bool axisDown = triggerAxis > 0.65f && !_wasRightTriggerDown;
+                _wasRightTriggerDown = triggerAxis > 0.65f;
+                rightControllerTrigger = btnDown || axisDown;
             }
             if (leftControllerRayOrigin != null)
             {
                 leftCtrlRay = new Ray(leftControllerRayOrigin.position, leftControllerRayOrigin.forward);
                 hasLeftCtrlRay = true;
-                leftControllerTrigger = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch) ||
-                                        OVRInput.GetDown(OVRInput.Button.Three, OVRInput.Controller.LTouch) ||
-                                        OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.LTouch) > 0.65f;
+                bool btnDown = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch) ||
+                               OVRInput.GetDown(OVRInput.Button.Three, OVRInput.Controller.LTouch);
+                float triggerAxis = OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.LTouch);
+                bool axisDown = triggerAxis > 0.65f && !_wasLeftTriggerDown;
+                _wasLeftTriggerDown = triggerAxis > 0.65f;
+                leftControllerTrigger = btnDown || axisDown;
             }
 
             // Decide active ray: Priority to the actively clicking hand/controller
@@ -350,6 +362,7 @@ namespace SudokuVR.Interaction
             if (origin == _mainCamera?.transform && !hasHover)
             {
                 rayVisual.enabled = false;
+                if (pointerReticle != null) pointerReticle.SetActive(false);
                 return;
             }
 
@@ -363,6 +376,23 @@ namespace SudokuVR.Interaction
             Color color = isClicking ? rayClickColor : (hasHover ? rayHoverColor : rayNormalColor);
             rayVisual.startColor = color;
             rayVisual.endColor = new Color(color.r, color.g, color.b, 0.05f);
+
+            // Update Round Pointer Reticle
+            if (pointerReticle != null)
+            {
+                pointerReticle.SetActive(true);
+                // Offset slightly towards the origin so it doesn't z-fight with surfaces
+                pointerReticle.transform.position = end - ray.direction * 0.003f;
+                pointerReticle.transform.rotation = Quaternion.LookRotation(ray.direction);
+
+                float scaleMultiplier = isClicking ? 0.75f : (hasHover ? 1.4f : 1.0f);
+                pointerReticle.transform.localScale = Vector3.one * (0.018f * scaleMultiplier);
+
+                if (_reticleMaterial != null)
+                {
+                    _reticleMaterial.color = color;
+                }
+            }
         }
 
         private void TriggerHapticPulse(float amplitude, float duration)
@@ -395,6 +425,31 @@ namespace SudokuVR.Interaction
                 mat.color = rayNormalColor;
                 rayVisual.material = mat;
                 rayVisual.enabled = false;
+            }
+
+            if (pointerReticle == null)
+            {
+                pointerReticle = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                pointerReticle.name = "VR_PointerReticle";
+                pointerReticle.transform.SetParent(transform, false);
+                pointerReticle.transform.localScale = Vector3.one * 0.018f;
+
+                // Eliminate collider so reticle never blocks raycasts
+                var col = pointerReticle.GetComponent<Collider>();
+                if (col != null) Destroy(col);
+
+                Shader s = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+                _reticleMaterial = new Material(s);
+                _reticleMaterial.color = rayNormalColor;
+                var mr = pointerReticle.GetComponent<MeshRenderer>();
+                if (mr != null) mr.sharedMaterial = _reticleMaterial;
+
+                pointerReticle.SetActive(false);
+            }
+            else if (_reticleMaterial == null)
+            {
+                var mr = pointerReticle.GetComponent<MeshRenderer>();
+                if (mr != null) _reticleMaterial = mr.sharedMaterial;
             }
         }
     }

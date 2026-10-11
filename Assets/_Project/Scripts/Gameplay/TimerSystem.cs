@@ -17,12 +17,19 @@ namespace SudokuVR.Gameplay
 
         public event Action<float> OnTimerTick;
 
+        private int _lastSecond = -1;
+
         private void Update()
         {
             if (_isRunning)
             {
                 _elapsedSeconds += Time.deltaTime;
-                OnTimerTick?.Invoke(_elapsedSeconds);
+                int currentSecond = Mathf.FloorToInt(_elapsedSeconds);
+                if (currentSecond != _lastSecond)
+                {
+                    _lastSecond = currentSecond;
+                    OnTimerTick?.Invoke(_elapsedSeconds);
+                }
             }
         }
 
@@ -44,6 +51,7 @@ namespace SudokuVR.Gameplay
         public void ResetTimer()
         {
             _elapsedSeconds = 0f;
+            _lastSecond = -1;
             _isRunning = false;
         }
 

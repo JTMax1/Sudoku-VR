@@ -101,6 +101,7 @@ namespace SudokuVR.UI
 
         public void ShowHubView()
         {
+            gameObject.SetActive(true);
             _currentScreen = NavigationScreen.HubHome;
             SetActivePanel(hubHomePanel);
             if (inGameRoot != null) inGameRoot.SetActive(false);
@@ -118,6 +119,7 @@ namespace SudokuVR.UI
         {
             _currentScreen = NavigationScreen.InGamePuzzle;
             SetActivePanel(null); // Hide hub panels
+            gameObject.SetActive(false); // Hide hub console completely during gameplay
 
             if (inGameRoot != null)
             {
@@ -171,6 +173,7 @@ namespace SudokuVR.UI
 
             _currentScreen = NavigationScreen.InGamePuzzle;
             SetActivePanel(null); // Hide menu panels
+            gameObject.SetActive(false); // Hide hub console completely during gameplay
 
             if (inGameRoot != null)
             {

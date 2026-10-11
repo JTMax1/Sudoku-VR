@@ -420,6 +420,25 @@ namespace SudokuVR.Interaction
 
         public void BuildBoundingFrame(float boardSpan)
         {
+            Material frameMat = null;
+            Transform backplate = transform.Find("Monolith_Backplate");
+            if (backplate != null)
+            {
+                var bpRend = backplate.GetComponent<MeshRenderer>();
+                if (bpRend != null && bpRend.sharedMaterial != null) frameMat = bpRend.sharedMaterial;
+            }
+            if (frameMat == null)
+            {
+                Shader urpShader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Universal Render Pipeline/Simple Lit");
+                if (urpShader != null)
+                {
+                    frameMat = new Material(urpShader);
+                    frameMat.SetColor("_BaseColor", new Color(0.18f, 0.22f, 0.28f, 1f));
+                    frameMat.SetFloat("_Metallic", 0.6f);
+                    frameMat.SetFloat("_Smoothness", 0.7f);
+                }
+            }
+
             // Sleek TV Bounding Frame standing in the X-Y plane
             if (boundingFrameMesh == null)
             {
@@ -429,6 +448,9 @@ namespace SudokuVR.Interaction
                 frameObj.transform.localPosition = new Vector3(0f, 0f, 0.012f);
                 float frameWidth = boardSpan + 0.10f;
                 frameObj.transform.localScale = new Vector3(frameWidth, frameWidth, 0.018f);
+
+                var rend = frameObj.GetComponent<MeshRenderer>();
+                if (rend != null && frameMat != null) rend.sharedMaterial = frameMat;
 
                 // Frame box collider for distance grab raycasting
                 var col = frameObj.GetComponent<BoxCollider>();
@@ -447,6 +469,9 @@ namespace SudokuVR.Interaction
                 leftTab.transform.localPosition = new Vector3(-boardSpan * 0.56f, 0f, 0f);
                 leftTab.transform.localScale = new Vector3(0.038f, 0.16f, 0.024f);
 
+                var rend = leftTab.GetComponent<MeshRenderer>();
+                if (rend != null && frameMat != null) rend.sharedMaterial = frameMat;
+
                 var col = leftTab.GetComponent<BoxCollider>();
                 if (col == null) col = leftTab.AddComponent<BoxCollider>();
                 col.isTrigger = false;
@@ -462,6 +487,9 @@ namespace SudokuVR.Interaction
                 rightTab.transform.SetParent(transform, false);
                 rightTab.transform.localPosition = new Vector3(boardSpan * 0.56f, 0f, 0f);
                 rightTab.transform.localScale = new Vector3(0.038f, 0.16f, 0.024f);
+
+                var rend = rightTab.GetComponent<MeshRenderer>();
+                if (rend != null && frameMat != null) rend.sharedMaterial = frameMat;
 
                 var col = rightTab.GetComponent<BoxCollider>();
                 if (col == null) col = rightTab.AddComponent<BoxCollider>();

@@ -378,6 +378,18 @@ namespace SudokuVR.Gameplay
             cellObj.name = $"Tile_{row}_{col}";
             cellObj.transform.SetParent(transform, false);
 
+            var rend = cellObj.GetComponent<MeshRenderer>();
+            if (rend != null)
+            {
+                Shader s = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Universal Render Pipeline/Simple Lit");
+                if (s != null)
+                {
+                    var mat = new Material(s);
+                    mat.SetColor("_BaseColor", new Color(0.12f, 0.15f, 0.21f, 1f));
+                    rend.sharedMaterial = mat;
+                }
+            }
+
             Tile3DView view = cellObj.AddComponent<Tile3DView>();
 
             // Main 3D Text on front face facing player

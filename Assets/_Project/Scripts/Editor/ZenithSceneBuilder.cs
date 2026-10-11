@@ -72,6 +72,9 @@ namespace SudokuVR.Editor
                 Undo.RegisterCreatedObjectUndo(systemsRoot, "Create Zenith Systems");
             }
 
+            // Clean any broken/missing MonoBehaviours on systems root
+            GameObjectUtility.RemoveMonoBehavioursWithMissingScript(systemsRoot);
+
             ProgressionManager progression = GetOrAddComponent<ProgressionManager>(systemsRoot);
             CountryPassportTracker passportTracker = GetOrAddComponent<CountryPassportTracker>(systemsRoot);
             MultiplayerLobbyBridge lobbyBridge = GetOrAddComponent<MultiplayerLobbyBridge>(systemsRoot);
@@ -82,18 +85,57 @@ namespace SudokuVR.Editor
             SudokuGameManager gameManager = GetOrAddComponent<SudokuGameManager>(systemsRoot);
             CellInteractor interactor = GetOrAddComponent<CellInteractor>(systemsRoot);
 
+            Transform reticleChild = systemsRoot.transform.Find("VR_PointerReticle");
+            GameObject reticleObj;
+            if (reticleChild == null)
+            {
+                reticleObj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                reticleObj.name = "VR_PointerReticle";
+                reticleObj.transform.SetParent(systemsRoot.transform, false);
+                reticleObj.transform.localScale = Vector3.one * 0.018f;
+                var col = reticleObj.GetComponent<Collider>();
+                if (col != null) UnityEngine.Object.DestroyImmediate(col);
+
+                Shader s = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+                var mat = new Material(s);
+                mat.color = new Color(0f, 0.75f, 1f, 0.45f);
+                var mr = reticleObj.GetComponent<MeshRenderer>();
+                if (mr != null) mr.sharedMaterial = mat;
+                reticleObj.SetActive(false);
+            }
+            else
+            {
+                reticleObj = reticleChild.gameObject;
+            }
+
+            SerializedObject soInteractor = new SerializedObject(interactor);
             if (cameraRig != null)
             {
-                SerializedObject soInteractor = new SerializedObject(interactor);
                 soInteractor.FindProperty("rightControllerRayOrigin").objectReferenceValue = cameraRig.rightControllerAnchor;
                 soInteractor.FindProperty("leftControllerRayOrigin").objectReferenceValue = cameraRig.leftControllerAnchor;
                 soInteractor.FindProperty("rightHandRayOrigin").objectReferenceValue = cameraRig.rightHandAnchor;
                 soInteractor.FindProperty("leftHandRayOrigin").objectReferenceValue = cameraRig.leftHandAnchor;
-                soInteractor.ApplyModifiedPropertiesWithoutUndo();
             }
+            soInteractor.FindProperty("pointerReticle").objectReferenceValue = reticleObj;
+            soInteractor.ApplyModifiedPropertiesWithoutUndo();
 
             // 4. Assemble Zen Studio Environment (minimalist backdrop when MR is disabled)
-            GameObject zenStudio = GameObject.Find("ZenStudio_Environment");
+            GameObject zenStudio = null;
+            var sceneRoots = UnityEngine.SceneManagement.SceneManager.GetActiveScene().GetRootGameObjects();
+            foreach (var root in sceneRoots)
+            {
+                if (root != null && root.name == "ZenStudio_Environment")
+                {
+                    if (zenStudio == null)
+                    {
+                        zenStudio = root;
+                    }
+                    else
+                    {
+                        UnityEngine.Object.DestroyImmediate(root);
+                    }
+                }
+            }
             if (zenStudio == null)
             {
                 zenStudio = new GameObject("ZenStudio_Environment");
@@ -236,6 +278,12 @@ namespace SudokuVR.Editor
             rt.sizeDelta = new Vector2(750f, 220f);
             rt.localScale = new Vector3(0.0008f, 0.0008f, 0.0008f);
 
+            // Clear any preexisting children to avoid duplicated overlays
+            for (int i = hudRoot.transform.childCount - 1; i >= 0; i--)
+            {
+                UnityEngine.Object.DestroyImmediate(hudRoot.transform.GetChild(i).gameObject);
+            }
+
             // 1. Metrics Bar
             GameObject barObj = new GameObject("MetricsBar", typeof(RectTransform), typeof(HorizontalLayoutGroup));
             barObj.transform.SetParent(hudRoot.transform, false);
@@ -321,6 +369,12 @@ namespace SudokuVR.Editor
             RectTransform rt = hubRoot.GetComponent<RectTransform>();
             rt.sizeDelta = new Vector2(1000f, 650f);
             rt.localScale = new Vector3(0.001f, 0.001f, 0.001f);
+
+            // Clear any preexisting child panels to avoid duplicated overlays
+            for (int i = hubRoot.transform.childCount - 1; i >= 0; i--)
+            {
+                UnityEngine.Object.DestroyImmediate(hubRoot.transform.GetChild(i).gameObject);
+            }
 
             // 1. Home Panel
             GameObject homePanel = new GameObject("Panel_Home", typeof(RectTransform));

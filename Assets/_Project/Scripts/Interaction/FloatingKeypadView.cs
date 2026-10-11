@@ -144,6 +144,17 @@ namespace SudokuVR.Interaction
                 bpObj.transform.SetParent(transform, false);
                 var col = bpObj.GetComponent<Collider>();
                 if (col != null) DestroyImmediate(col);
+                var rend = bpObj.GetComponent<MeshRenderer>();
+                if (rend != null)
+                {
+                    Shader s = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Universal Render Pipeline/Simple Lit");
+                    if (s != null)
+                    {
+                        var mat = new Material(s);
+                        mat.SetColor("_BaseColor", new Color(0.08f, 0.10f, 0.15f, 0.95f));
+                        rend.sharedMaterial = mat;
+                    }
+                }
                 backplate = bpObj.transform;
             }
             backplate.localPosition = new Vector3(0f, 0.012f, 0.008f);
@@ -231,6 +242,18 @@ namespace SudokuVR.Interaction
             GameObject btnObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
             btnObj.name = name;
             btnObj.transform.SetParent(transform, false);
+
+            var rend = btnObj.GetComponent<MeshRenderer>();
+            if (rend != null)
+            {
+                Shader s = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Universal Render Pipeline/Simple Lit");
+                if (s != null)
+                {
+                    var mat = new Material(s);
+                    mat.SetColor("_BaseColor", new Color(0.16f, 0.20f, 0.28f, 1f));
+                    rend.sharedMaterial = mat;
+                }
+            }
 
             TactileKeypadButton btn = btnObj.AddComponent<TactileKeypadButton>();
 
