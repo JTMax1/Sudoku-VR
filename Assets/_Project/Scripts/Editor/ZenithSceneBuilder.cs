@@ -184,7 +184,7 @@ namespace SudokuVR.Editor
             Transform hudTransform = monolithRoot.transform.Find("SpatialHUD_Arc");
             GameObject hudObj = (hudTransform != null) ? hudTransform.gameObject : new GameObject("SpatialHUD_Arc");
             hudObj.transform.SetParent(monolithRoot.transform, false);
-            hudObj.transform.localPosition = new Vector3(0f, 0.38f, 0.01f);
+            hudObj.transform.localPosition = new Vector3(0f, 0.40f, -0.045f);
             hudObj.transform.localRotation = Quaternion.identity;
 
             SpatialHUDView hudView = GetOrAddComponent<SpatialHUDView>(hudObj);
@@ -257,7 +257,7 @@ namespace SudokuVR.Editor
             GameObject barObj = new GameObject("MetricsBar", typeof(RectTransform), typeof(HorizontalLayoutGroup));
             barObj.transform.SetParent(hudRoot.transform, false);
             RectTransform barRt = barObj.GetComponent<RectTransform>();
-            barRt.anchoredPosition = new Vector2(0f, 50f);
+            barRt.anchoredPosition = new Vector2(0f, 35f);
             barRt.sizeDelta = new Vector2(700f, 50f);
 
             HorizontalLayoutGroup hlg = barObj.GetComponent<HorizontalLayoutGroup>();
@@ -274,20 +274,23 @@ namespace SudokuVR.Editor
             GameObject actionsObj = new GameObject("ActionsBar", typeof(RectTransform));
             actionsObj.transform.SetParent(hudRoot.transform, false);
             RectTransform actionsRt = actionsObj.GetComponent<RectTransform>();
-            actionsRt.anchoredPosition = new Vector2(0f, -5f);
+            actionsRt.anchoredPosition = new Vector2(0f, -20f);
             actionsRt.sizeDelta = new Vector2(700f, 45f);
 
             Button pauseBtn = CreateSpatialUIButton(actionsObj, "Btn_Pause", "PAUSE", new Vector2(-160f, 0f), new Vector2(130f, 40f), new Color(0.12f, 0.55f, 0.85f));
             Button mrBtn = CreateSpatialUIButton(actionsObj, "Btn_MRToggle", "PASSTHROUGH", new Vector2(0f, 0f), new Vector2(150f, 40f), new Color(0.12f, 0.70f, 0.45f));
             Button recenterBtn = CreateSpatialUIButton(actionsObj, "Btn_Recenter", "RECENTER", new Vector2(165f, 0f), new Vector2(140f, 40f), new Color(0.85f, 0.60f, 0.15f));
 
-            // 3. Hint Toast Text
-            GameObject hintObj = new GameObject("HintToast", typeof(RectTransform));
+            // 3. Hint Toast Banner (Floats prominently above metrics bar with dark frosted pill background)
+            GameObject hintObj = new GameObject("HintToast", typeof(RectTransform), typeof(Image));
             hintObj.transform.SetParent(hudRoot.transform, false);
             RectTransform hintRt = hintObj.GetComponent<RectTransform>();
-            hintRt.anchoredPosition = new Vector2(0f, -60f);
-            hintRt.sizeDelta = new Vector2(700f, 40f);
-            TMP_Text hintText = CreateTMPLabel(hintObj, "HintLabel", "", 20f, new Color(1f, 0.85f, 0.3f));
+            hintRt.anchoredPosition = new Vector2(0f, 95f);
+            hintRt.sizeDelta = new Vector2(720f, 48f);
+            Image hintBg = hintObj.GetComponent<Image>();
+            hintBg.color = new Color(0.05f, 0.08f, 0.14f, 0.95f);
+            TMP_Text hintText = CreateTMPLabel(hintObj, "HintLabel", "", 20f, new Color(1f, 0.88f, 0.35f));
+            hintObj.SetActive(false);
 
             // 4. Dedicated In-Game Modals Canvas placed in FRONT of the board (Z = -0.065m)
             Transform modalTransform = monolithRoot.transform.Find("InGame_Modals");

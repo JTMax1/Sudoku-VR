@@ -97,6 +97,10 @@ namespace SudokuVR.UI
             if (hintNotificationText != null)
             {
                 hintNotificationText.text = "";
+                if (hintNotificationText.transform.parent != null)
+                {
+                    hintNotificationText.transform.parent.gameObject.SetActive(false);
+                }
             }
         }
 
@@ -163,9 +167,14 @@ namespace SudokuVR.UI
         {
             if (hintNotificationText != null)
             {
+                if (hintNotificationText.transform.parent != null)
+                {
+                    hintNotificationText.transform.parent.gameObject.SetActive(true);
+                }
+                hintNotificationText.gameObject.SetActive(true);
                 hintNotificationText.text = $"<color=#FFD700><b>HINT:</b></color> {hint.Description}";
                 CancelInvoke(nameof(ClearHintText));
-                Invoke(nameof(ClearHintText), 5f);
+                Invoke(nameof(ClearHintText), 6f);
             }
         }
 
@@ -174,6 +183,10 @@ namespace SudokuVR.UI
             if (hintNotificationText != null)
             {
                 hintNotificationText.text = "";
+                if (hintNotificationText.transform.parent != null)
+                {
+                    hintNotificationText.transform.parent.gameObject.SetActive(false);
+                }
             }
         }
 

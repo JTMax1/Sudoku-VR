@@ -127,20 +127,36 @@ namespace SudokuVR.Interaction
                 rightRot = pointer.rotation;
                 rightForward = pointer.forward;
 
-                bool isMiddlePinch = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) || _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Middle) > 0.35f;
-                bool isRingGrip = _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Ring) > 0.35f;
-                bool isPinkyGrip = _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Pinky) > 0.35f;
-                bool isIndexPinch = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Index) || _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.50f;
+                Vector3 localPos = transform.InverseTransformPoint(rightPos);
+                bool isOverPlayingGrid = Mathf.Abs(localPos.x) < 0.27f && Mathf.Abs(localPos.y) < 0.27f && Mathf.Abs(localPos.z) < 0.20f;
 
-                rightGripPressed = isMiddlePinch || isRingGrip || isPinkyGrip;
-                if (!rightGripPressed && isIndexPinch)
+                float dHandleL = leftGrabTab != null ? Vector3.Distance(rightPos, leftGrabTab.position) : 999f;
+                float dHandleR = rightGrabTab != null ? Vector3.Distance(rightPos, rightGrabTab.position) : 999f;
+                bool isNearHandle = dHandleL < 0.16f || dHandleR < 0.16f;
+                bool isNearBezel = (Mathf.Abs(localPos.x) >= 0.27f || Mathf.Abs(localPos.y) >= 0.27f) && (Mathf.Abs(localPos.x) < 0.40f && Mathf.Abs(localPos.y) < 0.40f);
+
+                bool isIndexPinch = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Index) || _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.6f;
+                bool isMiddlePinch = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) || _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Middle) > 0.6f;
+                bool isFullFist = _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Middle) > 0.55f && _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Ring) > 0.55f;
+
+                if (_isGrabbedRight)
                 {
-                    // Pinch near handles, perimeter frame, or distance ray grab
-                    float dHandleL = leftGrabTab != null ? Vector3.Distance(rightPos, leftGrabTab.position) : 999f;
-                    float dHandleR = rightGrabTab != null ? Vector3.Distance(rightPos, rightGrabTab.position) : 999f;
-                    if (dHandleL < 0.28f || dHandleR < 0.28f || _isGrabbedRight)
+                    // While grabbed, maintain grab until fingers release
+                    rightGripPressed = isIndexPinch || isMiddlePinch || isFullFist;
+                }
+                else
+                {
+                    // New grab only allowed if NOT playing/hovering over the tile grid!
+                    if (!isOverPlayingGrid)
                     {
-                        rightGripPressed = true;
+                        if (isNearHandle && (isIndexPinch || isMiddlePinch || isFullFist))
+                        {
+                            rightGripPressed = true;
+                        }
+                        else if (isNearBezel && (isMiddlePinch || isFullFist))
+                        {
+                            rightGripPressed = true;
+                        }
                     }
                 }
             }
@@ -151,7 +167,7 @@ namespace SudokuVR.Interaction
                 rightForward = _cameraRig.rightControllerAnchor.forward;
 
                 rightGripPressed = OVRInput.Get(OVRInput.Button.PrimaryHandTrigger, OVRInput.Controller.RTouch) ||
-                                   OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, OVRInput.Controller.RTouch) > 0.25f;
+                                   OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, OVRInput.Controller.RTouch) > 0.35f;
             }
 
             // 2. Left Hand / Controller
@@ -162,19 +178,34 @@ namespace SudokuVR.Interaction
                 leftRot = pointer.rotation;
                 leftForward = pointer.forward;
 
-                bool isMiddlePinch = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) || _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Middle) > 0.35f;
-                bool isRingGrip = _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Ring) > 0.35f;
-                bool isPinkyGrip = _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Pinky) > 0.35f;
-                bool isIndexPinch = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Index) || _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.50f;
+                Vector3 localPos = transform.InverseTransformPoint(leftPos);
+                bool isOverPlayingGrid = Mathf.Abs(localPos.x) < 0.27f && Mathf.Abs(localPos.y) < 0.27f && Mathf.Abs(localPos.z) < 0.20f;
 
-                leftGripPressed = isMiddlePinch || isRingGrip || isPinkyGrip;
-                if (!leftGripPressed && isIndexPinch)
+                float dHandleL = leftGrabTab != null ? Vector3.Distance(leftPos, leftGrabTab.position) : 999f;
+                float dHandleR = rightGrabTab != null ? Vector3.Distance(leftPos, rightGrabTab.position) : 999f;
+                bool isNearHandle = dHandleL < 0.16f || dHandleR < 0.16f;
+                bool isNearBezel = (Mathf.Abs(localPos.x) >= 0.27f || Mathf.Abs(localPos.y) >= 0.27f) && (Mathf.Abs(localPos.x) < 0.40f && Mathf.Abs(localPos.y) < 0.40f);
+
+                bool isIndexPinch = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Index) || _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.6f;
+                bool isMiddlePinch = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) || _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Middle) > 0.6f;
+                bool isFullFist = _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Middle) > 0.55f && _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Ring) > 0.55f;
+
+                if (_isGrabbedLeft)
                 {
-                    float dHandleL = leftGrabTab != null ? Vector3.Distance(leftPos, leftGrabTab.position) : 999f;
-                    float dHandleR = rightGrabTab != null ? Vector3.Distance(leftPos, rightGrabTab.position) : 999f;
-                    if (dHandleL < 0.28f || dHandleR < 0.28f || _isGrabbedLeft)
+                    leftGripPressed = isIndexPinch || isMiddlePinch || isFullFist;
+                }
+                else
+                {
+                    if (!isOverPlayingGrid)
                     {
-                        leftGripPressed = true;
+                        if (isNearHandle && (isIndexPinch || isMiddlePinch || isFullFist))
+                        {
+                            leftGripPressed = true;
+                        }
+                        else if (isNearBezel && (isMiddlePinch || isFullFist))
+                        {
+                            leftGripPressed = true;
+                        }
                     }
                 }
             }
@@ -185,7 +216,7 @@ namespace SudokuVR.Interaction
                 leftForward = _cameraRig.leftControllerAnchor.forward;
 
                 leftGripPressed = OVRInput.Get(OVRInput.Button.PrimaryHandTrigger, OVRInput.Controller.LTouch) ||
-                                  OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, OVRInput.Controller.LTouch) > 0.25f;
+                                  OVRInput.Get(OVRInput.Axis1D.PrimaryHandTrigger, OVRInput.Controller.LTouch) > 0.35f;
             }
 
             // 3. Proximity and Ray Checks
@@ -201,17 +232,21 @@ namespace SudokuVR.Interaction
             bool rayRightAiming = IsRayAimingAtBoard(rightRay, out float hitDistRight);
             bool rayLeftAiming = IsRayAimingAtBoard(leftRay, out float hitDistLeft);
 
-            // If index pinch with tracked hand at a distance, allow distance grab if aiming at frame/board
-            if (_rightHand != null && _rightHand.IsTracked && !rightGripPressed)
+            // Distance Grab with tracked hands requires an intentional fist / middle pinch, NEVER an index pinch (which is for selecting tiles)
+            if (_rightHand != null && _rightHand.IsTracked && !_isGrabbedRight)
             {
-                if (rayRightAiming && (_rightHand.GetFingerIsPinching(OVRHand.HandFinger.Index) || _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.6f))
+                bool isMiddlePinch = _rightHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) || _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Middle) > 0.6f;
+                bool isFullFist = _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Middle) > 0.55f && _rightHand.GetFingerPinchStrength(OVRHand.HandFinger.Ring) > 0.55f;
+                if (rayRightAiming && (isMiddlePinch || isFullFist))
                 {
                     rightGripPressed = true;
                 }
             }
-            if (_leftHand != null && _leftHand.IsTracked && !leftGripPressed)
+            if (_leftHand != null && _leftHand.IsTracked && !_isGrabbedLeft)
             {
-                if (rayLeftAiming && (_leftHand.GetFingerIsPinching(OVRHand.HandFinger.Index) || _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.6f))
+                bool isMiddlePinch = _leftHand.GetFingerIsPinching(OVRHand.HandFinger.Middle) || _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Middle) > 0.6f;
+                bool isFullFist = _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Middle) > 0.55f && _leftHand.GetFingerPinchStrength(OVRHand.HandFinger.Ring) > 0.55f;
+                if (rayLeftAiming && (isMiddlePinch || isFullFist))
                 {
                     leftGripPressed = true;
                 }

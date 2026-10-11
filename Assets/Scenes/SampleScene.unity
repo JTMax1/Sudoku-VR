@@ -1528,6 +1528,8 @@ MonoBehaviour:
   interactableLayer:
     serializedVersion: 2
     m_Bits: 4294967295
+  pokeEnterDistance: 0.32
+  pokeExitDistance: 0.38
   rayNormalColor: {r: 0, g: 0.75, b: 1, a: 0.45}
   rayHoverColor: {r: 0, g: 1, b: 0.75, a: 0.85}
   rayClickColor: {r: 1, g: 0.9, b: 0.2, a: 1}
@@ -2286,9 +2288,97 @@ PrefabInstance:
       propertyPath: zenEnvironmentRoot
       value: 
       objectReference: {fileID: 1301385767}
+    - target: {fileID: 2432884819609968518, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 2703203680202193953, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2703203680202193953, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2703203680202193953, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMin.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2703203680202193953, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4171837821118202683, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
       propertyPath: m_Name
       value: SpatialBoard_Monolith
+      objectReference: {fileID: 0}
+    - target: {fileID: 4371754861330755966, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4371754861330755966, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4371754861330755966, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMin.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4371754861330755966, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4583902351379718325, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 5112798178118157508, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5112798178118157508, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5112798178118157508, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMin.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5112798178118157508, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5793775083761023036, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMax.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5793775083761023036, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMax.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5793775083761023036, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMin.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5793775083761023036, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_AnchorMin.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6172353173717352418, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4281588223
+      objectReference: {fileID: 0}
+    - target: {fileID: 6172353173717352418, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 6516950625298344225, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_fontColor32.rgba
+      value: 4294957312
+      objectReference: {fileID: 0}
+    - target: {fileID: 6516950625298344225, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
       objectReference: {fileID: 0}
     - target: {fileID: 8014775897820407074, guid: 6db01ddef4c2246978b20bb6231bf2c8, type: 3}
       propertyPath: m_LocalPosition.x

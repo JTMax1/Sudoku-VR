@@ -8,11 +8,12 @@ namespace SudokuVR.Interaction
 {
     /// <summary>
     /// Multi-modal XR interactor for Meta Quest 3 (Horizon OS).
-    /// Provides independent, simultaneous dual-hand interaction:
-    /// 1. Dual Ray Point & Click (Independent Right & Left hands/controllers with custom reticles)
-    /// 2. Dual Direct Index Fingertip Poking (Physical contact on 3D tiles, tactile keys, and UI buttons)
-    /// 3. Haptic feedback pulses per-hand
-    /// 4. Editor Mouse & Keyboard fallback
+    /// Enforces clean, auto-detected mutually exclusive interaction modes:
+    /// 1. Controllers: Dual laser rays with controller triggers when controllers are held.
+    /// 2. Direct Index Fingertip Poke: Automatically activates in close proximity (<0.32m).
+    ///    Mutes laser pointers and enables tactile 3D touch using the real INDEX finger (never ring).
+    /// 3. Ray Point & Click: Automatically activates at distance (>=0.35m).
+    ///    Displays laser line + round reticle and uses index pinch to click.
     /// Zero garbage collection allocations in update loops.
     /// </summary>
     public class CellInteractor : MonoBehaviour
@@ -27,20 +28,22 @@ namespace SudokuVR.Interaction
         [SerializeField] private float maxRayDistance = 4.0f;
         [SerializeField] private LayerMask interactableLayer = ~0;
 
+        [Header("Proximity Poke Thresholds")]
+        [SerializeField] private float pokeEnterDistance = 0.32f; // Distance to board to enter poke mode
+        [SerializeField] private float pokeExitDistance = 0.38f;  // Distance to board to exit poke mode
+
         [Header("Laser Colors")]
         [SerializeField] private Color rayNormalColor = new Color(0f, 0.75f, 1f, 0.45f);
         [SerializeField] private Color rayHoverColor = new Color(0f, 1f, 0.75f, 0.85f);
         [SerializeField] private Color rayClickColor = new Color(1f, 0.9f, 0.2f, 1f);
 
-        // Ray Visuals per hand
         [Header("Pointers (Auto-created if null)")]
         [SerializeField] private LineRenderer rightRayVisual;
         [SerializeField] private GameObject rightPointerReticle;
         [SerializeField] private LineRenderer leftRayVisual;
         [SerializeField] private GameObject leftPointerReticle;
 
-        // Fingertip Poke visuals per hand
-        [Header("Poke Tip Visuals")]
+        [Header("Poke Tip Visuals (Index Fingertips)")]
         [SerializeField] private GameObject rightPokeOrb;
         [SerializeField] private GameObject leftPokeOrb;
 
@@ -55,6 +58,7 @@ namespace SudokuVR.Interaction
 
         private Material _rightReticleMat;
         private Material _leftReticleMat;
+        private Transform _boardMonolithTransform;
 
         // Hit Buffers (preallocated zero GC)
         private readonly RaycastHit[] _rightHitBuffer = new RaycastHit[16];
@@ -85,6 +89,10 @@ namespace SudokuVR.Interaction
         private float _lastPokeTimeRight;
         private float _lastPokeTimeLeft;
 
+        // Modality State per hand (Hysteresis state tracking)
+        private bool _isRightInPokeMode;
+        private bool _isLeftInPokeMode;
+
         private void Awake()
         {
             _mainCamera = Camera.main ?? FindAnyObjectByType<Camera>();
@@ -98,6 +106,16 @@ namespace SudokuVR.Interaction
         private void Start()
         {
             AutoBindRigTransforms();
+            FindBoardMonolith();
+        }
+
+        private void FindBoardMonolith()
+        {
+            if (_boardMonolithTransform == null)
+            {
+                var board = GameObject.Find("SpatialBoard_Monolith");
+                if (board != null) _boardMonolithTransform = board.transform;
+            }
         }
 
         private void AutoBindRigTransforms()
@@ -129,45 +147,121 @@ namespace SudokuVR.Interaction
 
         private void Update()
         {
-            // Re-bind if hands initialized late
             if (_rightHand == null || _leftHand == null)
             {
                 AutoBindRigTransforms();
             }
+            if (_boardMonolithTransform == null)
+            {
+                FindBoardMonolith();
+            }
 
-            // 1. Process Direct Index Fingertip Poking (Both Hands)
-            ProcessDirectFingertipPoke(true);  // Right Hand Poke
-            ProcessDirectFingertipPoke(false); // Left Hand Poke
+            // Process Right Hand/Controller
+            ProcessHandInteraction(true);
 
-            // 2. Process Independent Raycast Pointers (Both Hands)
-            ProcessHandPointer(true);  // Right Hand Pointer
-            ProcessHandPointer(false); // Left Hand Pointer
+            // Process Left Hand/Controller
+            ProcessHandInteraction(false);
 
-            // 3. Editor Mouse Fallback
+            // Editor Mouse Fallback
             if (Application.isEditor)
             {
                 ProcessEditorMouseFallback();
             }
         }
 
-        #region Direct Fingertip Poking
-
-        private void ProcessDirectFingertipPoke(bool isRight)
+        private void ProcessHandInteraction(bool isRight)
         {
-            if (!TryGetIndexTipPosition(isRight, out Vector3 tipPos))
+            OVRHand hand = isRight ? _rightHand : _leftHand;
+            Transform ctrlOrigin = isRight ? rightControllerRayOrigin : leftControllerRayOrigin;
+            OVRInput.Controller ctrl = isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch;
+
+            bool isControllerActive = OVRInput.IsControllerConnected(ctrl) &&
+                                     (hand == null || !hand.IsTracked);
+
+            // -------------------------------------------------------------
+            // MODE 1: CONTROLLERS
+            // -------------------------------------------------------------
+            if (isControllerActive)
             {
-                GameObject pokeOrb = isRight ? rightPokeOrb : leftPokeOrb;
-                if (pokeOrb != null && pokeOrb.activeSelf) pokeOrb.SetActive(false);
+                // In controller mode: Poking is disabled; Ray pointer is active
+                GameObject orb = isRight ? rightPokeOrb : leftPokeOrb;
+                if (orb != null && orb.activeSelf) orb.SetActive(false);
+
+                ProcessControllerPointer(isRight);
                 return;
             }
 
-            GameObject orb = isRight ? rightPokeOrb : leftPokeOrb;
-            if (orb != null)
+            // -------------------------------------------------------------
+            // TRACKED HANDS: AUTO-DETECT DIRECT POKE VS RAY POINT & CLICK
+            // -------------------------------------------------------------
+            if (hand != null && hand.IsTracked)
             {
-                orb.SetActive(true);
-                orb.transform.position = tipPos;
+                bool hasIndexTip = TryGetIndexTipPosition(isRight, out Vector3 indexTipPos);
+
+                // Compute distance to interactable board/keypad
+                float distToBoard = float.MaxValue;
+                if (hasIndexTip && _boardMonolithTransform != null)
+                {
+                    distToBoard = Vector3.Distance(indexTipPos, _boardMonolithTransform.position);
+                }
+
+                // Hysteresis for smooth mode switching
+                ref bool inPokeMode = ref (isRight ? ref _isRightInPokeMode : ref _isLeftInPokeMode);
+                if (inPokeMode)
+                {
+                    if (distToBoard > pokeExitDistance) inPokeMode = false;
+                }
+                else
+                {
+                    if (distToBoard < pokeEnterDistance) inPokeMode = true;
+                }
+
+                if (inPokeMode && hasIndexTip)
+                {
+                    // ---------------------------------------------------------
+                    // MODE 2: DIRECT INDEX FINGERTIP POKE (Close proximity)
+                    // ---------------------------------------------------------
+                    // 1. Hide laser ray and reticle
+                    LineRenderer line = isRight ? rightRayVisual : leftRayVisual;
+                    GameObject reticle = isRight ? rightPointerReticle : leftPointerReticle;
+                    if (line != null && line.enabled) line.enabled = false;
+                    if (reticle != null && reticle.activeSelf) reticle.SetActive(false);
+                    ClearHovers(isRight);
+
+                    // 2. Show index fingertip poke orb
+                    GameObject orb = isRight ? rightPokeOrb : leftPokeOrb;
+                    if (orb != null)
+                    {
+                        orb.SetActive(true);
+                        orb.transform.position = indexTipPos;
+                    }
+
+                    // 3. Process direct physical touch
+                    ExecuteIndexTipOverlapPoke(isRight, indexTipPos);
+                }
+                else
+                {
+                    // ---------------------------------------------------------
+                    // MODE 3: RAY POINT & CLICK (Distance)
+                    // ---------------------------------------------------------
+                    // 1. Hide poke orb
+                    GameObject orb = isRight ? rightPokeOrb : leftPokeOrb;
+                    if (orb != null && orb.activeSelf) orb.SetActive(false);
+
+                    // 2. Process laser ray pointing and pinch click
+                    ProcessHandRayPointer(isRight, hand);
+                }
+                return;
             }
 
+            // Hand not tracked & no controller: hide visuals
+            HideAllVisualsForHand(isRight);
+        }
+
+        #region Direct Index Fingertip Poke
+
+        private void ExecuteIndexTipOverlapPoke(bool isRight, Vector3 tipPos)
+        {
             float lastPokeTime = isRight ? _lastPokeTimeRight : _lastPokeTimeLeft;
             if (Time.time - lastPokeTime < 0.22f) return;
 
@@ -179,7 +273,7 @@ namespace SudokuVR.Interaction
                 Collider col = _pokeOverlapBuffer[i];
                 if (col == null) continue;
 
-                // 3D Tile
+                // 1. 3D Sudoku Tile
                 Tile3DView tile = col.GetComponentInParent<Tile3DView>();
                 if (tile != null)
                 {
@@ -190,7 +284,7 @@ namespace SudokuVR.Interaction
                     return;
                 }
 
-                // Tactile Keypad Button
+                // 2. Tactile Keypad Button
                 TactileKeypadButton key = col.GetComponentInParent<TactileKeypadButton>();
                 if (key != null)
                 {
@@ -201,7 +295,7 @@ namespace SudokuVR.Interaction
                     return;
                 }
 
-                // Spatial UI Canvas Button
+                // 3. Spatial UI Canvas Button (HUD, Pause, Modals)
                 Button uiBtn = col.GetComponentInParent<Button>();
                 if (uiBtn != null && uiBtn.interactable)
                 {
@@ -212,7 +306,7 @@ namespace SudokuVR.Interaction
                     return;
                 }
 
-                // Legacy Button & Cell
+                // 4. Legacy Button / Cell
                 SpatialNumpadButton legBtn = col.GetComponentInParent<SpatialNumpadButton>();
                 if (legBtn != null)
                 {
@@ -238,16 +332,32 @@ namespace SudokuVR.Interaction
             OVRHand hand = isRight ? _rightHand : _leftHand;
             OVRSkeleton skeleton = isRight ? _rightSkeleton : _leftSkeleton;
             ref Transform tipBone = ref (isRight ? ref _rightIndexTipBone : ref _leftIndexTipBone);
-            Transform ctrlOrigin = isRight ? rightControllerRayOrigin : leftControllerRayOrigin;
 
-            // 1. Hand tracking with initialized skeleton
+            // 1. Strictly identify the INDEX FINGERTIP bone from skeleton
             if (hand != null && hand.IsTracked && skeleton != null && skeleton.IsInitialized)
             {
                 if (tipBone == null)
                 {
                     foreach (var bone in skeleton.Bones)
                     {
-                        if (bone.Id == OVRSkeleton.BoneId.Hand_IndexTip)
+                        if (bone.Transform == null) continue;
+                        string bName = bone.Transform.name;
+
+                        // Check name contains index and tip/distal/3
+                        bool nameHasIndex = bName.IndexOf("index", StringComparison.OrdinalIgnoreCase) >= 0;
+                        bool nameHasTip = bName.IndexOf("tip", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                          bName.IndexOf("distal", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                          bName.IndexOf("3", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                        if (nameHasIndex && nameHasTip)
+                        {
+                            tipBone = bone.Transform;
+                            break;
+                        }
+
+                        // In Meta XR SDK (XRHandLeft / XRHandRight), XRHand_IndexTip == 10
+                        // (Crucial: Bone 20 is XRHand_RingTip, so we NEVER match 20!)
+                        if ((int)bone.Id == 10)
                         {
                             tipBone = bone.Transform;
                             break;
@@ -262,7 +372,7 @@ namespace SudokuVR.Interaction
                 }
             }
 
-            // 2. Hand tracking fallback (pointer pose projected forward)
+            // 2. Hand tracking fallback (project forward from pointer pose)
             if (hand != null && hand.IsTracked)
             {
                 Transform pointer = hand.PointerPose != null ? hand.PointerPose : (isRight ? rightHandRayOrigin : leftHandRayOrigin);
@@ -273,13 +383,6 @@ namespace SudokuVR.Interaction
                 }
             }
 
-            // 3. Controller fallback tip
-            if (ctrlOrigin != null && OVRInput.IsControllerConnected(isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch))
-            {
-                tipPos = ctrlOrigin.TransformPoint(new Vector3(isRight ? 0.012f : -0.012f, -0.015f, 0.055f));
-                return true;
-            }
-
             tipPos = Vector3.zero;
             return false;
         }
@@ -288,82 +391,71 @@ namespace SudokuVR.Interaction
 
         #region Ray Pointers
 
-        private void ProcessHandPointer(bool isRight)
+        private void ProcessHandRayPointer(bool isRight, OVRHand hand)
         {
-            Ray ray = default;
-            bool hasRay = false;
-            bool triggerClicked = false;
-            Transform originTransform = null;
-
-            OVRHand hand = isRight ? _rightHand : _leftHand;
-            Transform handOrigin = isRight ? rightHandRayOrigin : leftHandRayOrigin;
-            Transform ctrlOrigin = isRight ? rightControllerRayOrigin : leftControllerRayOrigin;
-
-            // Evaluate Hand Tracking
-            if (hand != null && hand.IsTracked)
+            Transform originTransform = hand.PointerPose != null ? hand.PointerPose : (isRight ? rightHandRayOrigin : leftHandRayOrigin);
+            if (originTransform == null)
             {
-                originTransform = hand.PointerPose != null ? hand.PointerPose : handOrigin;
-                if (originTransform != null)
-                {
-                    ray = new Ray(originTransform.position, originTransform.forward);
-                    hasRay = true;
-
-                    bool isPinching = hand.GetFingerIsPinching(OVRHand.HandFinger.Index) ||
-                                     hand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.60f;
-
-                    if (isRight)
-                    {
-                        if (isPinching && !_wasPinchingRight) triggerClicked = true;
-                        _wasPinchingRight = isPinching;
-                    }
-                    else
-                    {
-                        if (isPinching && !_wasPinchingLeft) triggerClicked = true;
-                        _wasPinchingLeft = isPinching;
-                    }
-                }
-            }
-            // Evaluate Touch Controller
-            else if (ctrlOrigin != null)
-            {
-                originTransform = ctrlOrigin;
-                ray = new Ray(ctrlOrigin.position, ctrlOrigin.forward);
-                hasRay = true;
-
-                OVRInput.Controller ctrl = isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch;
-                OVRInput.Button btnPrimary = isRight ? OVRInput.Button.One : OVRInput.Button.Three;
-
-                bool btnDown = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, ctrl) ||
-                               OVRInput.GetDown(btnPrimary, ctrl);
-                float triggerAxis = OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, ctrl);
-
-                if (isRight)
-                {
-                    bool axisDown = triggerAxis > 0.60f && !_wasRightTriggerDown;
-                    _wasRightTriggerDown = triggerAxis > 0.60f;
-                    triggerClicked = btnDown || axisDown;
-                }
-                else
-                {
-                    bool axisDown = triggerAxis > 0.60f && !_wasLeftTriggerDown;
-                    _wasLeftTriggerDown = triggerAxis > 0.60f;
-                    triggerClicked = btnDown || axisDown;
-                }
-            }
-
-            LineRenderer line = isRight ? rightRayVisual : leftRayVisual;
-            GameObject reticle = isRight ? rightPointerReticle : leftPointerReticle;
-            Material reticleMat = isRight ? _rightReticleMat : _leftReticleMat;
-
-            if (!hasRay)
-            {
-                if (line != null) line.enabled = false;
-                if (reticle != null) reticle.SetActive(false);
-                ClearHovers(isRight);
+                HideAllVisualsForHand(isRight);
                 return;
             }
 
-            // Raycast execution
+            Ray ray = new Ray(originTransform.position, originTransform.forward);
+
+            bool isPinching = hand.GetFingerIsPinching(OVRHand.HandFinger.Index) ||
+                             hand.GetFingerPinchStrength(OVRHand.HandFinger.Index) > 0.60f;
+
+            bool triggerClicked = false;
+            if (isRight)
+            {
+                if (isPinching && !_wasPinchingRight) triggerClicked = true;
+                _wasPinchingRight = isPinching;
+            }
+            else
+            {
+                if (isPinching && !_wasPinchingLeft) triggerClicked = true;
+                _wasPinchingLeft = isPinching;
+            }
+
+            CastAndResolveRay(isRight, ray, triggerClicked, isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch);
+        }
+
+        private void ProcessControllerPointer(bool isRight)
+        {
+            Transform ctrlOrigin = isRight ? rightControllerRayOrigin : leftControllerRayOrigin;
+            if (ctrlOrigin == null)
+            {
+                HideAllVisualsForHand(isRight);
+                return;
+            }
+
+            Ray ray = new Ray(ctrlOrigin.position, ctrlOrigin.forward);
+            OVRInput.Controller ctrl = isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch;
+            OVRInput.Button btnPrimary = isRight ? OVRInput.Button.One : OVRInput.Button.Three;
+
+            bool btnDown = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, ctrl) ||
+                           OVRInput.GetDown(btnPrimary, ctrl);
+            float triggerAxis = OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, ctrl);
+
+            bool triggerClicked = false;
+            if (isRight)
+            {
+                bool axisDown = triggerAxis > 0.60f && !_wasRightTriggerDown;
+                _wasRightTriggerDown = triggerAxis > 0.60f;
+                triggerClicked = btnDown || axisDown;
+            }
+            else
+            {
+                bool axisDown = triggerAxis > 0.60f && !_wasLeftTriggerDown;
+                _wasLeftTriggerDown = triggerAxis > 0.60f;
+                triggerClicked = btnDown || axisDown;
+            }
+
+            CastAndResolveRay(isRight, ray, triggerClicked, ctrl);
+        }
+
+        private void CastAndResolveRay(bool isRight, Ray ray, bool triggerClicked, OVRInput.Controller ctrl)
+        {
             RaycastHit[] hitBuffer = isRight ? _rightHitBuffer : _leftHitBuffer;
             int hitCount = Physics.RaycastNonAlloc(ray, hitBuffer, maxRayDistance, interactableLayer);
 
@@ -397,14 +489,10 @@ namespace SudokuVR.Interaction
                 }
             }
 
-            // Update Hand Hovers
             UpdateHandHovers(isRight, hitTile, hitKey, hitUIButton, hitLegacyBtn, hitLegacyCell);
 
-            // Execute Click
             if (triggerClicked)
             {
-                OVRInput.Controller ctrl = isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch;
-
                 if (hitTile != null)
                 {
                     hitTile.TriggerClick();
@@ -429,9 +517,24 @@ namespace SudokuVR.Interaction
                 }
             }
 
-            // Update Laser Visuals & Reticle
+            LineRenderer line = isRight ? rightRayVisual : leftRayVisual;
+            GameObject reticle = isRight ? rightPointerReticle : leftPointerReticle;
+            Material reticleMat = isRight ? _rightReticleMat : _leftReticleMat;
+
             bool hasHover = (hitTile != null || hitKey != null || hitUIButton != null || hitLegacyBtn != null || hitLegacyCell != null);
             UpdatePointerVisuals(line, reticle, reticleMat, ray, closestDist, hasHover, triggerClicked);
+        }
+
+        private void HideAllVisualsForHand(bool isRight)
+        {
+            LineRenderer line = isRight ? rightRayVisual : leftRayVisual;
+            GameObject reticle = isRight ? rightPointerReticle : leftPointerReticle;
+            GameObject orb = isRight ? rightPokeOrb : leftPokeOrb;
+
+            if (line != null) line.enabled = false;
+            if (reticle != null) reticle.SetActive(false);
+            if (orb != null) orb.SetActive(false);
+            ClearHovers(isRight);
         }
 
         private void UpdateHandHovers(bool isRight, Tile3DView tile, TactileKeypadButton key, Button uiBtn, SpatialNumpadButton legBtn, SudokuCellView legCell)
@@ -560,7 +663,6 @@ namespace SudokuVR.Interaction
 
         private void ProcessEditorMouseFallback()
         {
-            // If VR hands/controllers are actively pointing, let them drive
             if ((_rightHand != null && _rightHand.IsTracked) || (_leftHand != null && _leftHand.IsTracked)) return;
 
             if (Mouse.current != null)
