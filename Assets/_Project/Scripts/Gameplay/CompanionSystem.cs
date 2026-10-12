@@ -26,6 +26,12 @@ namespace SudokuVR.Gameplay
         [SerializeField] private CompanionType activeCompanionType = CompanionType.FoxClever;
         [SerializeField] private Transform companionSlot;
 
+        [Header("Direct Companion Prefab References")]
+        [SerializeField] private GameObject foxPrefab;
+        [SerializeField] private GameObject dogPrefab;
+        [SerializeField] private GameObject penguinPrefab;
+        [SerializeField] private GameObject deerPrefab;
+
         private GameObject _activeInstance;
         private Animator _activeAnimator;
 
@@ -39,7 +45,8 @@ namespace SudokuVR.Gameplay
 
             if (companionSlot == null)
             {
-                var found = GameObject.Find("SpatialBoard_Monolith/Companion_Orbi");
+                var found = GameObject.Find("SpatialBoard_Monolith/Companion_Slot") ??
+                            GameObject.Find("SpatialBoard_Monolith/Companion_Orbi");
                 if (found != null) companionSlot = found.transform;
             }
         }
@@ -161,16 +168,16 @@ namespace SudokuVR.Gameplay
             switch (activeCompanionType)
             {
                 case CompanionType.FoxClever:
-                    _activeInstance = LoadPrefab("Assets/Fox/Prefabs/Fox.prefab", new Vector3(0, -0.06f, 0), new Vector3(0.20f, 0.20f, 0.20f), Quaternion.Euler(0, -35, 0));
+                    _activeInstance = LoadPrefab(foxPrefab, "Assets/Fox/Prefabs/Fox.prefab", new Vector3(0, -0.06f, 0), new Vector3(0.20f, 0.20f, 0.20f), Quaternion.Euler(0, -35, 0));
                     break;
                 case CompanionType.DogShiba:
-                    _activeInstance = LoadPrefab("Assets/ithappy/Animals_FREE/Prefabs/Dog_001.prefab", new Vector3(0, -0.06f, 0), new Vector3(0.18f, 0.18f, 0.18f), Quaternion.Euler(0, -35, 0));
+                    _activeInstance = LoadPrefab(dogPrefab, "Assets/ithappy/Animals_FREE/Prefabs/Dog_001.prefab", new Vector3(0, -0.06f, 0), new Vector3(0.18f, 0.18f, 0.18f), Quaternion.Euler(0, -35, 0));
                     break;
                 case CompanionType.PenguinPippin:
-                    _activeInstance = LoadPrefab("Assets/ithappy/Animals_FREE/Prefabs/Pinguin_001.prefab", new Vector3(0, -0.06f, 0), new Vector3(0.18f, 0.18f, 0.18f), Quaternion.Euler(0, -35, 0));
+                    _activeInstance = LoadPrefab(penguinPrefab, "Assets/ithappy/Animals_FREE/Prefabs/Pinguin_001.prefab", new Vector3(0, -0.06f, 0), new Vector3(0.18f, 0.18f, 0.18f), Quaternion.Euler(0, -35, 0));
                     break;
                 case CompanionType.DeerSylva:
-                    _activeInstance = LoadPrefab("Assets/ithappy/Animals_FREE/Prefabs/Deer_001.prefab", new Vector3(0, -0.06f, 0), new Vector3(0.18f, 0.18f, 0.18f), Quaternion.Euler(0, -35, 0));
+                    _activeInstance = LoadPrefab(deerPrefab, "Assets/ithappy/Animals_FREE/Prefabs/Deer_001.prefab", new Vector3(0, -0.06f, 0), new Vector3(0.18f, 0.18f, 0.18f), Quaternion.Euler(0, -35, 0));
                     break;
                 case CompanionType.OrbiStarSprite:
                     BuildOrbiMascot();
@@ -211,13 +218,19 @@ namespace SudokuVR.Gameplay
             trigger.BindSystem(this);
         }
 
-        private GameObject LoadPrefab(string path, Vector3 localPos, Vector3 localScale, Quaternion localRot)
+        private GameObject LoadPrefab(GameObject directPrefab, string fallbackPath, Vector3 localPos, Vector3 localScale, Quaternion localRot)
         {
+            GameObject prefabToSpawn = directPrefab;
 #if UNITY_EDITOR
-            GameObject prefab = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
-            if (prefab != null)
+            if (prefabToSpawn == null && !string.IsNullOrEmpty(fallbackPath))
             {
-                GameObject inst = (GameObject)UnityEditor.PrefabUtility.InstantiatePrefab(prefab, companionSlot);
+                prefabToSpawn = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(fallbackPath);
+            }
+#endif
+            if (prefabToSpawn != null)
+            {
+                GameObject inst = Instantiate(prefabToSpawn, companionSlot);
+                inst.name = prefabToSpawn.name;
                 inst.transform.localPosition = localPos;
                 inst.transform.localScale = localScale;
                 inst.transform.localRotation = localRot;
@@ -229,7 +242,6 @@ namespace SudokuVR.Gameplay
                 }
                 return inst;
             }
-#endif
             return null;
         }
 
