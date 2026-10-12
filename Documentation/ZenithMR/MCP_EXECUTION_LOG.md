@@ -80,7 +80,33 @@
   - `Assets/_Project/Scripts/Gameplay/SudokuGameManager.cs` (Wired audio cues & catalogue fallback)
   - `Assets/_Project/Scripts/UI/MainMenuController.cs` (Wired diorama refresh)
   - `SampleScene.unity` (`[Zenith_Systems]`, `SpatialBoard_Monolith/Companion_Orbi`, `SpatialHub_Navigation/Diorama_AlpineCampaign` saved)
-- **Status:** **All Milestones (A through F) Complete & Verified.**
+## Log Entry 004 — Deep Gameplay Economy & Authentic 3D Diorama Integration
+- **Timestamp:** 2026-10-11T21:51:00Z
+- **Objective:** Deeply integrate the Treasure Chest, 3D Hearts, and Vending Machine into core Sudoku mechanics (Heart Shields, Magic Wand hints, Time Freezes), and replace procedural primitives with 51 imported authentic low-poly 3D models.
+- **MCP Tools Used:**
+  - `unityMCP:run_command`: Downloaded and imported 51 stylized 3D FBX models from Kenney Holiday & Pirate Kits (snowy pines, modular chalets, rocks, snow piles, lanterns, string lights, and treasure chest).
+  - `unityMCP:write_to_file`: Created `Assets/_Project/Scripts/Core/GameBoosterInventory.cs` managing authoritative booster economy (`HeartShields`, `MagicWandHints`, `TimeFreezeSeconds`, `TreasureKeys`).
+  - `unityMCP:write_to_file`: Created `Assets/_Project/Scripts/Gameplay/HeartTokensBar.cs` managing 3D glowing hearts with shield protection and shatter physics.
+  - `unityMCP:write_to_file`: Created `Assets/_Project/Scripts/Gameplay/TreasureChestController.cs` featuring FBX chest model, anticipation opening sequence, and booster rewards.
+  - `unityMCP:write_to_file`: Created `Assets/_Project/Scripts/Interaction/ActionTokensDock.cs` hosting physical 3D tokens (Undo, Erase, Notes, Magic Wand) with live badge counts.
+  - `unityMCP:write_to_file`: Rewrote `Assets/_Project/Scripts/UI/CampaignDioramaController.cs` to instantiate real 3D pine trees, chalets, rock outcroppings, string lights, and summit treasure chest.
+  - `unityMCP:replace_file_content`: Integrated `GameBoosterInventory.TryConsumeHeartShield()` in `SudokuGameManager.cs` to prevent heart loss when shields are active, and awarded `TreasureKey` on 3-star puzzle victory.
+  - `unityMCP:execute_code`: Configured scene hierarchy, attached `GameBoosterInventory` to `[Zenith_Systems]`, added `HeartTokensBar` and `ActionTokensDock` to `SpatialBoard_Monolith`, cleanly rebuilt diorama, and saved scene.
+  - `unityMCP:refresh_unity`: Compiled all updated systems with 0 errors and 0 warnings.
+  - `unityMCP:run_tests`: Executed job `af125985b9264c4bace674e13233263a` in EditMode (6/6 passed in 0.052s).
+- **Files & Scene Objects Modified:**
+  - `Assets/_Project/Scripts/Core/GameBoosterInventory.cs` (Created)
+  - `Assets/_Project/Scripts/Gameplay/HeartTokensBar.cs` (Created)
+  - `Assets/_Project/Scripts/Gameplay/TreasureChestController.cs` (Created)
+  - `Assets/_Project/Scripts/Interaction/ActionTokensDock.cs` (Created)
+  - `Assets/_Project/Scripts/Interaction/FloatingKeypadView.cs` (Added `TogglePencilMode()`)
+  - `Assets/_Project/Scripts/UI/CampaignDioramaController.cs` (Upgraded with 51 real 3D models)
+  - `Assets/_Project/Scripts/Gameplay/SudokuGameManager.cs` (Shield absorption & Treasure Key award)
+  - `Assets/_Project/Art/Models/Diorama/` (51 FBX models imported)
+  - `Assets/_Project/Art/Models/Props/chest.fbx` (Imported)
+  - `Assets/_Project/Art/Textures/colormap.png` (Imported)
+  - `Assets/Scenes/SampleScene.unity` (Hierarchy updated and saved)
+- **Status:** **Gameplay Economy & Authentic 3D Diorama Fully Integrated & Verified.**
 
 ---
 *(End of Current Execution Log)*

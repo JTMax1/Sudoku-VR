@@ -108,6 +108,11 @@ namespace SudokuVR.Interaction
             pencilButton?.SetToggleState(active);
         }
 
+        public void TogglePencilMode()
+        {
+            HandlePencilPressed(0);
+        }
+
         /// <summary>
         /// Updates the remaining count badges below each keypad token (0 to 9 remaining).
         /// Extinguishes tokens when all 9 are placed on the board.

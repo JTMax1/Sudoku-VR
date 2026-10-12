@@ -324,6 +324,13 @@ namespace SudokuVR.Gameplay
 
                 if (!isCorrect)
                 {
+                    bool shieldSaved = GameBoosterInventory.Instance != null && GameBoosterInventory.Instance.TryConsumeHeartShield();
+                    if (shieldSaved)
+                    {
+                        Debug.Log("<color=#00FFFF><b>[Zenith Sudoku XR] Mistake absorbed by Heart Shield! Lives intact.</b></color>");
+                        return;
+                    }
+
                     _mistakeCount++;
                     scoringEngine?.RecordMistake();
                     OnMistakesUpdated?.Invoke(_mistakeCount, maxMistakesAllowed);
@@ -442,9 +449,10 @@ namespace SudokuVR.Gameplay
             {
                 scoringEngine?.CalculateFinalBonus(elapsed, CurrentDifficulty, _mistakeCount);
                 ProgressionManager.Instance?.RecordGameVictory(CurrentDifficulty, elapsed, _mistakeCount);
+                GameBoosterInventory.Instance?.AddTreasureKey(1);
                 TactileAudioService.Instance?.PlayVictoryFanfare();
 
-                Debug.Log("<color=#34C759><b>[Zenith Sudoku XR] VICTORY! Puzzle solved with perfection!</b></color>");
+                Debug.Log("<color=#34C759><b>[Zenith Sudoku XR] VICTORY! Puzzle solved with perfection! +1 Treasure Key earned.</b></color>");
             }
             else
             {
