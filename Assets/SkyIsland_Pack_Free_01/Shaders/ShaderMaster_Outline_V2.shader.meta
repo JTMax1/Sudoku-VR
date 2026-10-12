@@ -1,0 +1,16 @@
+fileFormatVersion: 2
+guid: d856eaed913d1124693f1ef70ee3ad29
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures: []
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 412828
+  packageName: Cute Magic - SkyIsland Pack Free 01
+  packageVersion: 1.0.0
+  assetPath: Assets/SkyIsland_Pack_Free_01/Shaders/ShaderMaster_Outline_V2.shader
+  uploadId: 1008776

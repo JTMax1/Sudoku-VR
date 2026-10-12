@@ -23,6 +23,7 @@
 # Unity asset cache & temporary generated files
 sysinfo.txt
 *.stackdump
+mono_crash.*
 
 # Visual Studio / VS Code / Rider cache & project solutions
 ExportedObj/
@@ -67,3 +68,33 @@ Logs/Editor.log
 Logs/shadercompiler-AssetImportWorkerHW0-0.log
 Logs/shadercompiler-AssetImportWorkerHW1-0.log
 Logs/upm.log
+
+# Unused downloaded asset store packages
+Assets/Hipernt/
+Assets/Hipernt.meta
+Assets/A_piece_of_nature/
+Assets/A_piece_of_nature.meta
+Assets/Props_3D/
+Assets/Props_3D.meta
+Assets/LowPolyLivingRoomPack/
+Assets/LowPolyLivingRoomPack.meta
+Assets/LowPoly Environment Pack/
+Assets/LowPoly Environment Pack.meta
+Assets/FinottiGames/
+Assets/FinottiGames.meta
+Assets/ithappy/Creative_Characters_FREE/
+Assets/ithappy/Creative_Characters_FREE.meta
+Assets/Pandazole_Lowpoly_Asset_Bundle/
+Assets/Pandazole_Lowpoly_Asset_Bundle.meta
+Assets/Assets/
+Assets/Assets.meta
+Assets/Samples/
+Assets/Samples.meta
+Assets/TutorialInfo/
+Assets/TutorialInfo.meta
+Assets/Akduman/
+Assets/Akduman.meta
+Assets/Anime Trees/
+Assets/Anime Trees.meta
+
+

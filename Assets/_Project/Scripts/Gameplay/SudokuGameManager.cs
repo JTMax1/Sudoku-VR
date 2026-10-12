@@ -324,6 +324,7 @@ namespace SudokuVR.Gameplay
 
                 if (!isCorrect)
                 {
+                    CompanionSystem.Instance?.TriggerMistakeReaction();
                     bool shieldSaved = GameBoosterInventory.Instance != null && GameBoosterInventory.Instance.TryConsumeHeartShield();
                     if (shieldSaved)
                     {
@@ -348,6 +349,7 @@ namespace SudokuVR.Gameplay
                 {
                     scoringEngine?.RecordCorrectPlacement(CurrentDifficulty);
                     TactileAudioService.Instance?.PlayDigitPlaced(digit);
+                    CompanionSystem.Instance?.TriggerJoyReaction();
                 }
 
                 bool modified = _boardState.SetCell(r, c, digit, PlayerId.LocalPlayer);
@@ -451,6 +453,7 @@ namespace SudokuVR.Gameplay
                 ProgressionManager.Instance?.RecordGameVictory(CurrentDifficulty, elapsed, _mistakeCount);
                 GameBoosterInventory.Instance?.AddTreasureKey(1);
                 TactileAudioService.Instance?.PlayVictoryFanfare();
+                CompanionSystem.Instance?.TriggerVictoryDance();
 
                 Debug.Log("<color=#34C759><b>[Zenith Sudoku XR] VICTORY! Puzzle solved with perfection! +1 Treasure Key earned.</b></color>");
             }

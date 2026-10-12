@@ -61,6 +61,15 @@ namespace SudokuVR.UI
         {
             RegisterButtonCallbacks();
             UpdateStatsRibbon();
+
+            var titleScreen = FindAnyObjectByType<TitleScreen3DController>();
+            if (titleScreen != null && titleScreen.gameObject.activeInHierarchy)
+            {
+                // Defer showing hub until user clicks ENTER ZENITH on TitleScreen_3D
+                gameObject.SetActive(false);
+                return;
+            }
+
             ShowHubView();
         }
 

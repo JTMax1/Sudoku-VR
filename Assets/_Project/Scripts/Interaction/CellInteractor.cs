@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
 using SudokuVR.Gameplay;
+using SudokuVR.UI;
 
 namespace SudokuVR.Interaction
 {
@@ -306,7 +307,62 @@ namespace SudokuVR.Interaction
                     return;
                 }
 
-                // 4. Legacy Button / Cell
+                // 4. Diorama Level Node (Levels 1 to 5)
+                DioramaLevelNode dNode = col.GetComponentInParent<DioramaLevelNode>();
+                if (dNode != null)
+                {
+                    dNode.TriggerNodeClick();
+                    if (isRight) _lastPokeTimeRight = Time.time;
+                    else _lastPokeTimeLeft = Time.time;
+                    TriggerHapticPulse(isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch, 0.45f, 0.12f);
+                    return;
+                }
+
+                // 5. Summit Epic Chest
+                DioramaEpicChestTrigger chestTrig = col.GetComponentInParent<DioramaEpicChestTrigger>();
+                if (chestTrig != null)
+                {
+                    chestTrig.OnPointerClick();
+                    if (isRight) _lastPokeTimeRight = Time.time;
+                    else _lastPokeTimeLeft = Time.time;
+                    TriggerHapticPulse(isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch, 0.5f, 0.15f);
+                    return;
+                }
+
+                // 6. Companion Switcher Pedestal
+                CompanionSwitcherTrigger compTrig = col.GetComponentInParent<CompanionSwitcherTrigger>();
+                if (compTrig != null)
+                {
+                    compTrig.OnPointerClick();
+                    if (isRight) _lastPokeTimeRight = Time.time;
+                    else _lastPokeTimeLeft = Time.time;
+                    TriggerHapticPulse(isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch, 0.4f, 0.1f);
+                    return;
+                }
+
+                // 7. Board Theme Switcher Dial
+                ThemeSwitcherTrigger themeTrig = col.GetComponentInParent<ThemeSwitcherTrigger>();
+                if (themeTrig != null)
+                {
+                    themeTrig.OnPointerClick();
+                    if (isRight) _lastPokeTimeRight = Time.time;
+                    else _lastPokeTimeLeft = Time.time;
+                    TriggerHapticPulse(isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch, 0.4f, 0.1f);
+                    return;
+                }
+
+                // 8. Title Screen Enter Button
+                TitleEnterTrigger titleTrig = col.GetComponentInParent<TitleEnterTrigger>();
+                if (titleTrig != null)
+                {
+                    titleTrig.GetComponentInParent<TitleScreen3DController>()?.HandleEnterPressed();
+                    if (isRight) _lastPokeTimeRight = Time.time;
+                    else _lastPokeTimeLeft = Time.time;
+                    TriggerHapticPulse(isRight ? OVRInput.Controller.RTouch : OVRInput.Controller.LTouch, 0.5f, 0.15f);
+                    return;
+                }
+
+                // 9. Legacy Button / Cell
                 SpatialNumpadButton legBtn = col.GetComponentInParent<SpatialNumpadButton>();
                 if (legBtn != null)
                 {
@@ -466,6 +522,12 @@ namespace SudokuVR.Interaction
             SudokuCellView hitLegacyCell = null;
             float closestDist = float.MaxValue;
 
+            DioramaLevelNode hitDioramaNode = null;
+            DioramaEpicChestTrigger hitChest = null;
+            CompanionSwitcherTrigger hitCompSwitcher = null;
+            ThemeSwitcherTrigger hitThemeSwitcher = null;
+            TitleEnterTrigger hitTitleBtn = null;
+
             for (int i = 0; i < hitCount; i++)
             {
                 RaycastHit hit = hitBuffer[i];
@@ -474,15 +536,25 @@ namespace SudokuVR.Interaction
                     Tile3DView t = hit.collider.GetComponentInParent<Tile3DView>();
                     TactileKeypadButton k = hit.collider.GetComponentInParent<TactileKeypadButton>();
                     Button u = hit.collider.GetComponentInParent<Button>();
+                    DioramaLevelNode dn = hit.collider.GetComponentInParent<DioramaLevelNode>();
+                    DioramaEpicChestTrigger ct = hit.collider.GetComponentInParent<DioramaEpicChestTrigger>();
+                    CompanionSwitcherTrigger cs = hit.collider.GetComponentInParent<CompanionSwitcherTrigger>();
+                    ThemeSwitcherTrigger ts = hit.collider.GetComponentInParent<ThemeSwitcherTrigger>();
+                    TitleEnterTrigger te = hit.collider.GetComponentInParent<TitleEnterTrigger>();
                     SpatialNumpadButton lb = hit.collider.GetComponentInParent<SpatialNumpadButton>();
                     SudokuCellView lc = hit.collider.GetComponentInParent<SudokuCellView>();
 
-                    if (t != null || k != null || u != null || lb != null || lc != null)
+                    if (t != null || k != null || u != null || dn != null || ct != null || cs != null || ts != null || te != null || lb != null || lc != null)
                     {
                         closestDist = hit.distance;
                         hitTile = t;
                         hitKey = k;
                         hitUIButton = u;
+                        hitDioramaNode = dn;
+                        hitChest = ct;
+                        hitCompSwitcher = cs;
+                        hitThemeSwitcher = ts;
+                        hitTitleBtn = te;
                         hitLegacyBtn = lb;
                         hitLegacyCell = lc;
                     }
@@ -507,6 +579,31 @@ namespace SudokuVR.Interaction
                     hitUIButton.onClick.Invoke();
                     TriggerHapticPulse(ctrl, 0.5f, 0.15f);
                 }
+                else if (hitDioramaNode != null)
+                {
+                    hitDioramaNode.TriggerNodeClick();
+                    TriggerHapticPulse(ctrl, 0.45f, 0.12f);
+                }
+                else if (hitChest != null)
+                {
+                    hitChest.OnPointerClick();
+                    TriggerHapticPulse(ctrl, 0.5f, 0.15f);
+                }
+                else if (hitCompSwitcher != null)
+                {
+                    hitCompSwitcher.OnPointerClick();
+                    TriggerHapticPulse(ctrl, 0.4f, 0.1f);
+                }
+                else if (hitThemeSwitcher != null)
+                {
+                    hitThemeSwitcher.OnPointerClick();
+                    TriggerHapticPulse(ctrl, 0.4f, 0.1f);
+                }
+                else if (hitTitleBtn != null)
+                {
+                    hitTitleBtn.GetComponentInParent<TitleScreen3DController>()?.HandleEnterPressed();
+                    TriggerHapticPulse(ctrl, 0.5f, 0.15f);
+                }
                 else if (hitLegacyBtn != null)
                 {
                     hitLegacyBtn.TriggerPress();
@@ -521,7 +618,7 @@ namespace SudokuVR.Interaction
             GameObject reticle = isRight ? rightPointerReticle : leftPointerReticle;
             Material reticleMat = isRight ? _rightReticleMat : _leftReticleMat;
 
-            bool hasHover = (hitTile != null || hitKey != null || hitUIButton != null || hitLegacyBtn != null || hitLegacyCell != null);
+            bool hasHover = (hitTile != null || hitKey != null || hitUIButton != null || hitDioramaNode != null || hitChest != null || hitCompSwitcher != null || hitThemeSwitcher != null || hitTitleBtn != null || hitLegacyBtn != null || hitLegacyCell != null);
             UpdatePointerVisuals(line, reticle, reticleMat, ray, closestDist, hasHover, triggerClicked);
         }
 

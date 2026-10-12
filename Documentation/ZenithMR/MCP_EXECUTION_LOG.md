@@ -106,7 +106,63 @@
   - `Assets/_Project/Art/Models/Props/chest.fbx` (Imported)
   - `Assets/_Project/Art/Textures/colormap.png` (Imported)
   - `Assets/Scenes/SampleScene.unity` (Hierarchy updated and saved)
-- **Status:** **Gameplay Economy & Authentic 3D Diorama Fully Integrated & Verified.**
+## Log Entry 005 — 3D Title Experience, Multi-Theme Board, Companions & Event Modes
+- **Timestamp:** 2026-10-11T22:36:00Z
+- **Objective:** Resolve CS0234 player build compilation error, build monumental 3D title screen ("SUDOKU ZENITH MR"), implement multi-theme board engine, multi-companion mascot system, and unique time-based event modes.
+- **MCP Tools Used:**
+  - `unityMCP:replace_file_content`: Wrapped `SpawnDecorModel` in `CampaignDioramaController.cs` with `#if UNITY_EDITOR`, resolving player build error `CS0234`.
+  - `unityMCP:write_to_file`: Created `Assets/_Project/Scripts/UI/TitleScreen3DController.cs` delivering monumental 3D floating title ("SUDOKU ZENITH MR"), subtitle, and tactile "ENTER ZENITH" portal button.
+  - `unityMCP:write_to_file`: Created `Assets/_Project/Scripts/Gameplay/BoardThemeManager.cs` supporting 5 luxury visual board aesthetics (Royal Porcelain, Cyberpunk Neon, Volcanic Ember, Rose Quartz, Zen Woodcraft).
+  - `unityMCP:write_to_file`: Created `Assets/_Project/Scripts/Gameplay/CompanionSystem.cs` supporting 4 unique animated 3D mascots (Orbi Star Sprite, Buzzy Bee, Popcorn Pal, and Doku-Bot).
+  - `unityMCP:write_to_file`: Created `Assets/_Project/Scripts/Gameplay/SudokuEventModes.cs` providing Supernova Rush countdown attack, Mirror Symmetry Trial, and Grand Prix Qualifier.
+  - `unityMCP:execute_code`: Configured scene hierarchy; added `TitleScreen_3D` as root object, attached managers to `[Zenith_Systems]`, baked title typography in scene, and saved cleanly.
+  - `unityMCP:refresh_unity`: Compiled all updated systems with 0 errors and 0 warnings.
+  - `unityMCP:run_tests`: Executed job `dba45d39b2e740cfa2397c97cdcf6db3` in EditMode (6/6 passed in 0.044s).
+- **Files & Scene Objects Modified:**
+  - `Assets/_Project/Scripts/UI/CampaignDioramaController.cs` (Fixed CS0234 player build error)
+  - `Assets/_Project/Scripts/UI/TitleScreen3DController.cs` (Created)
+  - `Assets/_Project/Scripts/Gameplay/BoardThemeManager.cs` (Created)
+  - `Assets/_Project/Scripts/Gameplay/CompanionSystem.cs` (Created)
+  - `Assets/_Project/Scripts/Gameplay/SudokuEventModes.cs` (Created)
+  - `Assets/Scenes/SampleScene.unity` (`TitleScreen_3D` baked and saved)
+- **Status:** **Console Errors Resolved. 3D Title Experience, Multi-Theme Engine, Multiple Companions & Event Modes Verified.**
+
+---
+
+## Log Entry 006 — Complete App Review, Volumetric 3D Letter Mesh Generation & 3D Tactile Overhaul
+- **Timestamp:** 2026-10-12T00:04:00Z
+- **Objective:** Address user feedback with rigorous complete app audit: replace flat 2D TextMeshPro title text with genuine 3D volumetric letter meshes for "S U D O K U" and "Z E N I T H   M R", purge duplicate root objects, overhaul the monolithic gameplay board with chunky 3D ceramic tiles and tangible economy tokens, elevate the Alpine Campaign Diorama to become the centerpiece of the Spatial Hub, and provide clear guidance on the Meta XR SDK 3D Asset Library.
+- **Actions Taken:**
+  1. **3D Polygonal Mesh Generation:** Built and executed Python 3D mesh generator creating 13 custom extruded/beveled 3D letter models (`Letter_S.obj`, `Letter_U.obj`, `Letter_D.obj`, `Letter_O.obj`, `Letter_K.obj`, `Letter_Z.obj`, `Letter_E.obj`, `Letter_N.obj`, `Letter_I.obj`, `Letter_T.obj`, `Letter_H.obj`, `Letter_M.obj`, `Letter_R.obj`) in `Assets/_Project/Art/Models/3DText/` plus 3D gameplay props (`Prop_Heart3D.obj`, `Prop_Shield3D.obj`, `Prop_MagicWand3D.obj`, `Prop_ChunkyTile3D.obj`) in `Assets/_Project/Art/Models/Gameplay/`.
+  2. **Title Screen Overhaul:** Rebuilt `TitleScreen3DController.cs` and `TitleScreen_3D` in `SampleScene.unity`. Removed leaked root objects. Spanned 3D letters across a gentle cylindrical arc within the player's natural 30° FOV (width ~0.82m at 1.6m distance). Applied polished Champagne Gold and Electric Cyan Neon URP Lit shaders with dynamic harmonic levitation wave animations and a physical 3D "ENTER ZENITH" portal button.
+  3. **Board Overhaul (`SpatialBoard_Monolith`):**
+     - Upgraded all 81 tiles to `Prop_ChunkyTile3D.obj` (thick beveled ceramic slabs).
+     - Upgraded backplate and bounding frame to luxury dark slate and champagne gold beveled chassis.
+     - Baked 3 volumetric ruby hearts into `HeartTokens_Header` with gold bezels and glowing emission.
+     - Baked 4 physical 3D action tokens into `ActionTokens_Dock` (3D Shield badge, 3D Magic Wand star, 3D Undo coin, 3D Pencil).
+     - Upgraded Orbi mascot with a pearlescent glowing core, golden halo ring, and dual flutter wings.
+  4. **Hub & Diorama Overhaul (`SpatialHub_Navigation`):**
+     - Repositioned `Diorama_AlpineCampaign` to `(0, -0.05, 0.05)` with a 12° forward pitch, establishing the snowy alpine village (chalets, snow-dusted pines, rocks, festive lights, cable car, level pedestals 1–5, and summit treasure chest) as the visual centerpiece of the Spatial Hub.
+     - Framed `Panel_Home` navigation controls gracefully around the diorama (title/stats ribbon floating above the summit, action buttons forming an ergonomic lower deck).
+  5. **Verification & Tests:** Ran EditMode tests via `unityMCP:run_tests` (`job_id: 7f45c269bb7543de8e4bae925d8fc995`) — 6/6 tests passed in 0.051s. Console verified 100% clean (0 errors, 0 warnings).
+
+---
+
+## Log Entry 007 — Asset Store 3D Pack Integration, Multi-Biome Sky Island & Full Interaction Hookup
+- **Timestamp:** 2026-10-12T04:51:00Z
+- **Objective:** Integrate downloaded 3D assets from Unity Asset Store (SkyIsland Pack, Animated Animals, Fox, Fantasy Assets, URP Stylized Animated Chests) across multiple levels, expand the living companion mascot system with real animated 3D characters, and ensure all pointer, hand, poke, finger, and controller interactions are seamlessly wired.
+- **Actions Taken:**
+  1. **Sky Island Zenith Archipelago Diorama:** Rebuilt `CampaignDioramaController.cs` and `Diorama_AlpineCampaign` with 19 rich 3D elements across 5 biomes:
+     - **Zone 1 (Beginner):** Sky island foundation, palm tree, wooden pier, barrels, and animated Shiba dog pup (`Dog_001.prefab`).
+     - **Zone 2 (Easy):** Pine forest, wooden watchtower, and animated clever fox (`Fox.prefab`).
+     - **Zone 3 (Medium):** Fantasy glade, glowing mushrooms (`fabulous_mushroom_001`), and animated forest deer (`Deer_001.prefab`).
+     - **Zone 4 (Hard):** Snowy alpine village, chalets, lights, cable car, and animated alpine penguin (`Pinguin_001.prefab`).
+     - **Zone 5 (Extreme Summit):** Ancient stone monument, floating 3D clouds, and the **URP Animated Epic Chest (`EpicChest_PF_URP.prefab`)** with opening lid animation, fanfare, and booster rewards dispensing!
+  2. **Multi-Companion Mascot Roster:** Upgraded `CompanionSystem.cs` to manage 5 animated companions (Fox, Shiba Dog, Penguin, Deer, Orbi Star Sprite). Integrated reactive animations for joy (`Fox_Sit_Yes`, `Dog_001_run`, `Pinguin_001_run`), mistakes (`Fox_Sit_No`), and victory dance (`Fox_Somersault`) hooked directly into `SudokuGameManager.cs`. Added tactile VR companion switcher pedestal.
+  3. **Multi-Theme Board Switcher:** Added tactile 3D Theme Switcher dial on `SpatialBoard_Monolith` in `BoardThemeManager.cs` to cycle themes on the fly in VR.
+  4. **Multi-Modal Interaction Hookup:** Updated `CellInteractor.cs` to ensure all ray pointing (pinch/trigger click) and index finger direct poking seamlessly hit and trigger `DioramaLevelNode` (Levels 1–5), `DioramaEpicChestTrigger` (Summit Chest), `CompanionSwitcherTrigger` (Mascots), `ThemeSwitcherTrigger` (Themes), and `TitleEnterTrigger` with distinct haptic vibration pulses and acoustic feedback on both left and right hands.
+  5. **Automated Tests & Quality:** Ran EditMode test suite (`job_id: 019929cfeb9a403bafff823c95d83ce5`); 6/6 tests passed. Console clean (0 errors, 0 warnings).
 
 ---
 *(End of Current Execution Log)*
+
